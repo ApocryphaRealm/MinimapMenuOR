@@ -5,6 +5,13 @@ once a build is seen working in game (rule 48); until then entries sit under "Un
 
 ## 1.0.0 - 2026-09-30 - untested
 
+### Release (2026-09-30)
+- **Changed: no controller button by default** (the owner, at the finalize: "R3 is the target lock button, so don't map
+  it to anything for now on controller"). bGamepadHideButton and iPanHoldGamepadButton ship 0; any button can be bound
+  on the page.
+- The page in eleven languages. MM_Key, a stray example key from a comment in Strings.h, is gone from every file.
+- The package: README, LICENSE, NOTICE and THIRD_PARTY_NOTICES, keeping Dragon's Eye Minimap's MIT upstream notice.
+
 The owner, 2026-09-29: "start designing a minimap mod with an amf page for oblivion and use the same positioning logic
 as my dem mod", the location pop-up link, the name ("Let's just call it minimap menu"), K and L, DEM's control logic
 (binding and refusing keys, circle or square, tap to hide, tap to zoom, a switch for hold-to-pan), R3 on the controller

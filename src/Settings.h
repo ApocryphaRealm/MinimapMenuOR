@@ -58,8 +58,10 @@ namespace settings
 		float        holdToPanSecs = 0.25f;
 		float        zoomDefault = 1.0f;    // how much the map is magnified at each of the two zoom levels
 		float        zoomZoomedIn = 2.0f;
-		bool         gamepadHideButton = true;          // the owner: R3 by default
-		std::int32_t panHoldGamepadButton = 0x0080;     // XInput mask of any button, bound on the page; 0x0080 right stick click by default
+		// no controller button by default (the owner, 2026-09-30: "R3 is the target lock button, so don't map it to anything
+		// for now on controller"); the player binds one on the page
+		bool         gamepadHideButton = false;
+		std::int32_t panHoldGamepadButton = 0;          // XInput mask of any button, bound on the page; 0 = none
 		float        panSpeed = 1.0f;
 
 		// [Markers]

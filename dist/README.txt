@@ -23,8 +23,8 @@ KEYS
 ----
   * K - tap to hide or show the minimap; hold to pan it with the mouse (it recentres when let go).
   * L - tap to switch between the two zoom levels.
-  * Right stick click on a controller - the same tap and hold. Any controller button can be bound
-    instead, on the page.
+  * A controller button can do the same tap and hold: none is bound out of the box (the right stick
+    click is the target lock); bind any button on the page.
   * Gameplay only: nothing happens while a menu is open.
   * All keys are rebindable on the page. A vanilla action on the same key is yours to rebind in the
     game's own Controls page.

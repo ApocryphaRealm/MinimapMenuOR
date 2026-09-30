@@ -1,6 +1,6 @@
 #pragma once
 
-// Every visible string goes through TR("Key", "English") (rule 66). The eleven files are UTF-16LE with a BOM,
+// Every visible string goes through TR(<key>, "English") (rule 66). The eleven files are UTF-16LE with a BOM,
 // "$MM_<Key><TAB>text" per line, and ship in the FRAMEWORK's translation folder -
 // OBSE\Plugins\ApocryphaMenuFramework\Translations\MinimapMenu_<language>.txt - because AMF builds its
 // font atlas from every <Mod>_<language>.txt there (AMF-OR Strings.cpp): a Japanese or Chinese page gets its

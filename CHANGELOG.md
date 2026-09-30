@@ -11,6 +11,11 @@ once a build is seen working in game (rule 48); until then entries sit under "Un
   on the page.
 - The page in eleven languages. MM_Key, a stray example key from a comment in Strings.h, is gone from every file.
 - The package: README, LICENSE, NOTICE and THIRD_PARTY_NOTICES, keeping Dragon's Eye Minimap's MIT upstream notice.
+- **Fixed: the local map's corners outside the circle** (the owner's screenshot, 2026-09-30 02:28). The panel clips to its
+  square, so the map image - larger than the minimap and turned about the player - showed its square corners past the
+  round frame. In the circle the image now fills the minimap exactly, shows only the part in view through the brush's
+  UVRegion, and is drawn as a rounded box like the parchment; a circle is the same circle at any angle, so the turned map
+  stays inside it. The square shape is unchanged.
 
 The owner, 2026-09-29: "start designing a minimap mod with an amf page for oblivion and use the same positioning logic
 as my dem mod", the location pop-up link, the name ("Let's just call it minimap menu"), K and L, DEM's control logic

@@ -196,6 +196,64 @@ namespace minimap
 			return ue::CallFirst(a_image, L"SetBrush", copy.data(), copy.size());
 		}
 
+		// The local map in the circle (the owner's screenshot of 2026-09-30 02:28: the map's square corners showed outside
+		// the round frame). The panel clips to its square, so the map image - larger than the panel, turned about the
+		// player - was never rounded. In the circle the image instead fills the panel exactly, shows only the part of the
+		// map under it through the brush's UVRegion, and is a rounded box like the parchment; a circle is the same circle at
+		// any angle, so the turned map stays inside it. The brush is edited in a COPY and handed to SetBrush, so the image
+		// sees a changed brush and redraws. a_uv = { u0, v0, u1, v1 }; a_round false puts the plain image back.
+		bool MapBrush(UE::UObject* a_image, bool a_round, double a_size, const double (&a_uv)[4])
+		{
+			static auto* brushStruct = reinterpret_cast<UE::UStruct*>(UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/SlateCore.SlateBrush"));
+			static auto* outlineStruct = reinterpret_cast<UE::UStruct*>(UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/SlateCore.SlateBrushOutlineSettings"));
+			if (!a_image || !brushStruct || !outlineStruct) return false;
+			auto*      cls = a_image->GetClass();
+			const auto brushOff = ue::Offset(cls, "Brush");
+			const auto brushSize = ue::SizeOf(cls, "Brush");
+			const auto drawAs = ue::Offset(brushStruct, "DrawAs");
+			const auto uvOff = ue::Offset(brushStruct, "UVRegion");
+			const auto uvSize = ue::SizeOf(brushStruct, "UVRegion");
+			const auto outline = ue::Offset(brushStruct, "OutlineSettings");
+			const auto radii = ue::Offset(outlineStruct, "CornerRadii");
+			const auto radiiSize = ue::SizeOf(outlineStruct, "CornerRadii");
+			const auto rounding = ue::Offset(outlineStruct, "RoundingType");
+			const auto width = ue::Offset(outlineStruct, "Width");
+			if (brushOff < 0 || brushSize <= 0 || drawAs < 0 || uvOff < 0 || outline < 0 || radii < 0 || rounding < 0 || width < 0) return false;
+			// FBox2f { Min, Max, IsValid } is 20 bytes, FBox2D 40
+			if (uvSize != 20 && uvSize != 40) {
+				static bool logged = false;
+				if (!logged) logger::warn("minimap: the brush's UVRegion is {} bytes, not a Box2f or Box2D - the circle cannot hold the local map", uvSize);
+				logged = true;
+				return false;
+			}
+			const auto* live = reinterpret_cast<const std::uint8_t*>(a_image) + brushOff;
+			std::vector<std::uint8_t> copy(live, live + brushSize);
+			auto* b = copy.data();
+			b[drawAs] = a_round ? 4 : 3;   // ESlateBrushDrawType: RoundedBox / Image
+			if (uvSize == 40) {
+				std::memcpy(b + uvOff, a_uv, sizeof(a_uv));
+				b[uvOff + 32] = a_round ? 1 : 0;
+			} else {
+				const float v[4] = { static_cast<float>(a_uv[0]), static_cast<float>(a_uv[1]), static_cast<float>(a_uv[2]), static_cast<float>(a_uv[3]) };
+				std::memcpy(b + uvOff, v, sizeof(v));
+				b[uvOff + 16] = a_round ? 1 : 0;
+			}
+			if (a_round) {
+				const double r = a_size * 0.5;
+				if (radiiSize == 32) {
+					const double v[4] = { r, r, r, r };
+					std::memcpy(b + outline + radii, v, sizeof(v));
+				} else if (radiiSize == 16) {
+					const float v[4] = { static_cast<float>(r), static_cast<float>(r), static_cast<float>(r), static_cast<float>(r) };
+					std::memcpy(b + outline + radii, v, sizeof(v));
+				}
+				b[outline + rounding] = 1;   // HalfHeightRadius
+				const float w = 0.0f;
+				std::memcpy(b + outline + width, &w, sizeof(w));
+			}
+			return ue::CallFirst(a_image, L"SetBrush", copy.data(), copy.size());
+		}
+
 		// the frame (the owner: "The minimap needs to have some sort of frame to go around it"): a rounded box with no
 		// fill and an outline in the game's map-ink brown, square or round with the map
 		bool ApplyFrame(UE::UObject* a_image, bool a_circle, double a_size)
@@ -675,10 +733,62 @@ namespace minimap
 					Vec2(mapImg, L"SetRenderScale", mirror, 1.0);
 					lastMirror = mirror;
 				}
-				if (lp.ok) {
-					if (lp.material != g_mapShownMaterial) {
-						BrushFromMaterial(mapImg, lp.material);
-						g_mapShownMaterial = lp.material;
+				static int lastRound = -1;   // 1 the circle's panel-sized image, 0 the plain image, -1 not set since the brush
+				if (lp.ok && lp.material != g_mapShownMaterial) {
+					BrushFromMaterial(mapImg, lp.material);
+					g_mapShownMaterial = lp.material;
+					lastRound = -1;
+				}
+				if (lp.ok && circle && lp.width > 1.0 && lp.height > 1.0) {
+					// the point of the unturned image that sits under the panel's centre: the image turns (and mirrors) about the
+					// player's point P = (cx, cy), and turning it about the centre C instead gives the same picture once
+					// Q = P + M R(-angle) (C - P)
+					const double t = lp.angle * std::numbers::pi / 180.0;
+					const double dx = half - cx, dy = half - cy;
+					const double qx = mirror * (std::cos(t) * dx + std::sin(t) * dy);
+					const double qy = -std::sin(t) * dx + std::cos(t) * dy;
+					const double u = lp.pivotX + qx / lp.width, v = lp.pivotY + qy / lp.height;
+					const double hu = half / lp.width, hv = half / lp.height;
+					const double uv[4] = { u - hu, v - hv, u + hu, v + hv };
+					static double lastUv[4] = { -1e9, -1e9, -1e9, -1e9 };
+					static double lastSide = -1;
+					if (lastRound != 1) {
+						if (auto* ms = g_mapSlot.Get()) {
+							Vec2(ms, L"SetPosition", 0.0, 0.0);
+							Vec2(ms, L"SetSize", side, side);
+						}
+						Vec2(mapImg, L"SetRenderTransformPivot", 0.5, 0.5);
+						lastX = lastY = -1e9, lastW = lastPx = lastPy = -1;
+						lastSide = side;
+					} else if (side != lastSide) {
+						if (auto* ms = g_mapSlot.Get()) Vec2(ms, L"SetSize", side, side);
+						lastSide = side;
+					}
+					// a hundredth of a pixel of the minimap, so a still player sends nothing
+					const double eps = 0.01 / std::max(1.0, side) * std::min(hu, hv) * 2.0;
+					bool moved = lastRound != 1;
+					for (int k = 0; k < 4; ++k) moved = moved || std::abs(uv[k] - lastUv[k]) > eps;
+					if (moved) {
+						const bool ok = MapBrush(mapImg, true, side, uv);
+						std::copy(std::begin(uv), std::end(uv), lastUv);
+						if (lastRound != 1) logger::info("minimap: the local map is drawn inside the circle ({})", ok ? "a rounded brush over the part in view" : "the brush could not be set");
+						static bool edgeLogged = false;
+						if (!edgeLogged && (uv[0] < 0.0 || uv[1] < 0.0 || uv[2] > 1.0 || uv[3] > 1.0)) {
+							edgeLogged = true;
+							logger::info("minimap: the circle reaches past the local map's edge (uv {:.3f},{:.3f} - {:.3f},{:.3f}) - logged once", uv[0], uv[1], uv[2], uv[3]);
+						}
+					}
+					lastRound = 1;
+					if (std::abs(lp.angle - lastAngle) > 0.05) {
+						Float(mapImg, L"SetRenderTransformAngle", static_cast<float>(lp.angle));
+						lastAngle = lp.angle;
+					}
+				} else if (lp.ok) {
+					if (lastRound != 0) {   // after the circle, or a new material over a brush the circle had shaped
+						const double full[4] = { 0.0, 0.0, 1.0, 1.0 };
+						MapBrush(mapImg, false, side, full);
+						lastRound = 0;
+						lastX = lastY = -1e9, lastW = lastPx = lastPy = -1;
 					}
 					if (auto* ms = g_mapSlot.Get()) {
 						if (std::abs(lp.x - lastX) > 0.25 || std::abs(lp.y - lastY) > 0.25) {

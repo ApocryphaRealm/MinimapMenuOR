@@ -196,6 +196,25 @@ namespace ue
 		return item && reinterpret_cast<UE::UObject*>(item->object) == ptr ? ptr : nullptr;
 	}
 
+	std::vector<UE::UObject*> AllOf(UE::UClass* a_base)
+	{
+		std::vector<UE::UObject*> out;
+		auto* arr = UE::FUObjectArray::GetSingleton();
+		if (!arr || !a_base) return out;
+		arr->LockInternalArray();
+		const std::int32_t n = arr->GetObjectArrayNum();
+		for (std::int32_t i = 0; i < n; ++i) {
+			auto* item = arr->IndexToObject(i);
+			auto* o = item ? reinterpret_cast<UE::UObject*>(item->object) : nullptr;
+			auto* cls = o ? o->GetClass() : nullptr;
+			if (cls && cls->IsChildOf(a_base) && (static_cast<std::int32_t>(o->objectFlags) & 0x30) == 0) {   // not CDO (0x10), not archetype (0x20)
+				out.push_back(o);
+			}
+		}
+		arr->UnlockInternalArray();
+		return out;
+	}
+
 	UE::UObject* FirstOf(UE::UClass* a_base)
 	{
 		auto* arr = UE::FUObjectArray::GetSingleton();
@@ -209,7 +228,7 @@ namespace ue
 			auto* item = arr->IndexToObject(i);
 			auto* o = item ? reinterpret_cast<UE::UObject*>(item->object) : nullptr;
 			auto* cls = o ? o->GetClass() : nullptr;
-			if (cls && cls->IsChildOf(a_base) && o != cls->GetDefaultObject(false)) {
+			if (cls && cls->IsChildOf(a_base) && o != cls->GetDefaultObject(false) && (static_cast<std::int32_t>(o->objectFlags) & 0x30) == 0) {
 				found = o;
 			}
 		}

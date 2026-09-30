@@ -25,5 +25,6 @@ namespace popup
 
 	// game thread; a_active false puts the game's own place back (once)
 	void Tick(const Rect& a_map, bool a_active, double a_gapUnits);
+	bool Placing();   // the live banner is found and this mod is placing it (what the export tells HUD Position Manager)
 	json State();
 }

@@ -32,9 +32,11 @@ namespace ue
 		UE::UObject* Get() const;                // nullptr once the slot holds anything else
 	};
 
-	// the first live object whose class is a_base or derives from it (not a class default object) - scans the whole
-	// object array, so the caller caches the answer
+	// the first live object whose class is a_base or derives from it - never a class default object and never an
+	// ARCHETYPE (a widget blueprint's template widgets carry the variable's plain name and are never laid out: the location
+	// banner found first was one, 2026-09-29). Scans the whole object array, so the caller caches the answer
 	UE::UObject* FirstOf(UE::UClass* a_base);
+	std::vector<UE::UObject*> AllOf(UE::UClass* a_base);   // every such object
 
 	inline UE::UClass* Class(const wchar_t* a_path)
 	{

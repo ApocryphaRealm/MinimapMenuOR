@@ -49,7 +49,7 @@ namespace minimap
 		};
 
 		// ---- the widget (game thread) ----
-		ue::Handle g_root, g_panel, g_panelSlot, g_bg, g_arrow, g_arrowSlot;
+		ue::Handle g_root, g_panel, g_panelSlot, g_bg, g_arrow, g_arrowSlot, g_frame;
 		std::array<Slot, kPool> g_icons;
 		int       g_builds = 0;
 		ULONGLONG g_lastBuildTry = 0;
@@ -192,6 +192,54 @@ namespace minimap
 			return ue::CallFirst(a_image, L"SetBrush", copy.data(), copy.size());
 		}
 
+		// the frame (the owner: "The minimap needs to have some sort of frame to go around it"): a rounded box with no
+		// fill and an outline in the game's map-ink brown, square or round with the map
+		bool ApplyFrame(UE::UObject* a_image, bool a_circle, double a_size)
+		{
+			static auto* brushStruct = reinterpret_cast<UE::UStruct*>(UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/SlateCore.SlateBrush"));
+			static auto* outlineStruct = reinterpret_cast<UE::UStruct*>(UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/SlateCore.SlateBrushOutlineSettings"));
+			static auto* colorStruct = reinterpret_cast<UE::UStruct*>(UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/SlateCore.SlateColor"));
+			if (!a_image || !brushStruct || !outlineStruct || !colorStruct) return false;
+			auto*      cls = a_image->GetClass();
+			const auto brushOff = ue::Offset(cls, "Brush");
+			const auto brushSize = ue::SizeOf(cls, "Brush");
+			const auto drawAs = ue::Offset(brushStruct, "DrawAs");
+			const auto tint = ue::Offset(brushStruct, "TintColor");
+			const auto outline = ue::Offset(brushStruct, "OutlineSettings");
+			const auto radii = ue::Offset(outlineStruct, "CornerRadii");
+			const auto radiiSize = ue::SizeOf(outlineStruct, "CornerRadii");
+			const auto oColor = ue::Offset(outlineStruct, "Color");
+			const auto rounding = ue::Offset(outlineStruct, "RoundingType");
+			const auto width = ue::Offset(outlineStruct, "Width");
+			const auto specified = ue::Offset(colorStruct, "SpecifiedColor");
+			const auto rule = ue::Offset(colorStruct, "ColorUseRule");
+			if (brushOff < 0 || brushSize <= 0 || drawAs < 0 || tint < 0 || outline < 0 || radii < 0 || oColor < 0 || rounding < 0 || width < 0 ||
+				specified < 0 || rule < 0) {
+				return false;
+			}
+			auto* b = reinterpret_cast<std::uint8_t*>(a_image) + brushOff;
+			b[drawAs] = 4;   // RoundedBox
+			const float clear[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+			std::memcpy(b + tint + specified, clear, sizeof(clear));
+			b[tint + rule] = 0;   // UseColor_Specified
+			const float ink[4] = { 0.29f, 0.196f, 0.133f, 1.0f };   // #4a3222, the paper-map brown of our Oblivion Remastered banners
+			std::memcpy(b + outline + oColor + specified, ink, sizeof(ink));
+			b[outline + oColor + rule] = 0;
+			const double r = a_circle ? a_size * 0.5 : 4.0;
+			if (radiiSize == 32) {
+				const double v[4] = { r, r, r, r };
+				std::memcpy(b + outline + radii, v, sizeof(v));
+			} else if (radiiSize == 16) {
+				const float v[4] = { static_cast<float>(r), static_cast<float>(r), static_cast<float>(r), static_cast<float>(r) };
+				std::memcpy(b + outline + radii, v, sizeof(v));
+			}
+			b[outline + rounding] = a_circle ? 1 : 0;   // HalfHeightRadius / FixedRadius
+			const float w = 4.0f;
+			std::memcpy(b + outline + width, &w, sizeof(w));
+			std::vector<std::uint8_t> copy(b, b + brushSize);
+			return ue::CallFirst(a_image, L"SetBrush", copy.data(), copy.size());
+		}
+
 		UE::UObject* NewImage(UE::UObject* a_tree, UE::UObject* a_panel, const wchar_t* a_name, UE::UObject** a_slot)
 		{
 			static auto* imageClass = ue::Class(L"/Script/UMG.Image");
@@ -275,6 +323,14 @@ namespace minimap
 				BrushFromTexture(arrow, Asset(g_arrowTexture, kPlayerArrow));
 			}
 
+			// the frame last, so it draws over the image and the markers at the edge
+			UE::UObject* frameSlot = nullptr;
+			auto*        frame = NewImage(*tree, panel, (L"MinimapMenuFrame" + n).c_str(), &frameSlot);
+			if (frame) {
+				Anchors(frameSlot, 0, 0, 1, 1);
+				ue::CallFirst(frameSlot, L"SetOffsets", margin, sizeof(margin));
+			}
+
 			ue::Call vp(root, L"AddToViewport");
 			vp.Set<std::int32_t>("ZOrder", 3);   // under the game's menus
 			vp.Run();
@@ -284,6 +340,7 @@ namespace minimap
 			g_bg.Set(bg);
 			g_arrow.Set(arrow);
 			g_arrowSlot.Set(arrowSlot);
+			g_frame.Set(frame);
 			g_layout = {};
 			g_rootShown = true;
 			SetVisible(root, false);
@@ -350,6 +407,12 @@ namespace minimap
 				g_layout.shape = -1;   // a new brush: its draw type is applied again below
 			}
 			if (shape != g_layout.shape || side != g_layout.size) {
+				const bool framed = ApplyFrame(g_frame.Get(), shape == 1, side);
+				static bool frameLogged = false;
+				if (!frameLogged) {
+					frameLogged = true;
+					logger::info("minimap: frame {}", framed ? "set (a brown outline)" : "could not be set - the brush's outline settings are not reachable");
+				}
 				const bool ok = ApplyShape(bg, shape == 1, side);
 				static int logged = -1;
 				if (logged != shape) {
@@ -663,9 +726,11 @@ namespace minimap
 			g_nextMarkers = ms + 33;   // ~30 updates a second
 			Markers(dt);
 		}
-		const bool link = s.linkLocationPopup && g_rect.valid;
-		g_ownsPopup.store(link);
-		popup::Tick(g_rect, link && gameplay, s.popupGap / std::max(0.1, g_dpi));
+		// the banner follows the minimap only while the minimap is on screen; otherwise HUD Position Manager's layout (or
+		// the game's) applies - and the export says so (the primary agent's request, 2026-09-29)
+		const bool link = s.linkLocationPopup && g_rect.valid && visible;
+		popup::Tick(g_rect, link, s.popupGap / std::max(0.1, g_dpi));
+		g_ownsPopup.store(link && popup::Placing());
 
 		Status(visible ? "on screen" : (gameplay ? "hidden (the hide key)" : "waiting (a menu is open)"));
 		std::scoped_lock l(g_stateLock);

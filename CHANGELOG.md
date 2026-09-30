@@ -30,6 +30,16 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
   framework's keys, Tab, the other action's key and CCM's defaults are refused with the reason.
 - AMF pages Map, Controls, Markers and Status; TestBench tools minimap.status and minimap.drive.
 
+### Round 2 (the owner's first report, 2026-09-29)
+- A frame: a brown outline (the paper-map ink, #4a3222) around the map, square or round with it. The owner: "The
+  minimap needs to have some sort of frame to go around it."
+- The location banner never moved in round 1: the object found was the widget blueprint's TEMPLATE (an archetype named
+  plain WBP_ModernHud_Area, never laid out). Only live objects are used now (no class default object, no archetype), and
+  the banner chosen is the one actually laid out. Its current render translation is read from the widget, so an offset
+  another mod left on it does not skew the placement.
+- The export MinimapMenu_OwnsLocationPopup() is true only while the minimap is on screen and placing the banner, so HUD
+  Position Manager's layout applies whenever it is not (the primary agent's request).
+
 ### Known gaps in this build
 - The map picture does not show the terrain around the player yet (the capture of route A waits for the M0 probes).
 - The compass list's Angle and Distance units are assumed (a compass bearing in degrees, centimetres); minimap.status

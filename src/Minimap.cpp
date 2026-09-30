@@ -281,6 +281,10 @@ namespace minimap
 			}
 			*rootWidget = canvas;
 			auto* panel = UE::NewObject<UE::UObject>(*tree, canvasClass, UE::FName((L"MinimapMenuPanel" + n).c_str()));
+			if (!panel) {
+				Status("the map panel could not be made");
+				return false;
+			}
 			ue::Call add(canvas, L"AddChildToCanvas");
 			add.Set("Content", panel);
 			add.Run();
@@ -589,18 +593,35 @@ namespace minimap
 					lp = localmap::Place(cx, cy, pxPerCm, up);
 				}
 				const double mirror = s.mapMirror && s.alwaysDrawLocalMap ? -1.0 : 1.0;
-				if (lp.ok) Vec2(mapImg, L"SetRenderScale", mirror, 1.0);
+				// re-set only what changed (each call is a ProcessEvent into Slate)
+				static double lastMirror = 0, lastX = -1e9, lastY = -1e9, lastW = -1, lastPx = -1, lastPy = -1, lastAngle = -1e9;
+				if (lp.ok && mirror != lastMirror) {
+					Vec2(mapImg, L"SetRenderScale", mirror, 1.0);
+					lastMirror = mirror;
+				}
 				if (lp.ok) {
 					if (lp.material != g_mapShownMaterial) {
 						BrushFromMaterial(mapImg, lp.material);
 						g_mapShownMaterial = lp.material;
 					}
 					if (auto* ms = g_mapSlot.Get()) {
-						Vec2(ms, L"SetPosition", lp.x, lp.y);
-						Vec2(ms, L"SetSize", lp.width, lp.height);
+						if (std::abs(lp.x - lastX) > 0.25 || std::abs(lp.y - lastY) > 0.25) {
+							Vec2(ms, L"SetPosition", lp.x, lp.y);
+							lastX = lp.x, lastY = lp.y;
+						}
+						if (std::abs(lp.width - lastW) > 0.25) {
+							Vec2(ms, L"SetSize", lp.width, lp.height);
+							lastW = lp.width;
+						}
 					}
-					Vec2(mapImg, L"SetRenderTransformPivot", lp.pivotX, lp.pivotY);
-					Float(mapImg, L"SetRenderTransformAngle", static_cast<float>(lp.angle));
+					if (std::abs(lp.pivotX - lastPx) > 1e-4 || std::abs(lp.pivotY - lastPy) > 1e-4) {
+						Vec2(mapImg, L"SetRenderTransformPivot", lp.pivotX, lp.pivotY);
+						lastPx = lp.pivotX, lastPy = lp.pivotY;
+					}
+					if (std::abs(lp.angle - lastAngle) > 0.05) {
+						Float(mapImg, L"SetRenderTransformAngle", static_cast<float>(lp.angle));
+						lastAngle = lp.angle;
+					}
 				}
 				if (lp.ok != g_mapImgShown) {
 					SetVisible(mapImg, lp.ok);
@@ -715,11 +736,22 @@ namespace minimap
 			// the player arrow: at the player's place (it moves with a pan); north-up turns it to the heading
 			if (auto* arrow = g_arrow.Get()) {
 				const double sz = 26.0 * s.iconScale;
+				static double lastSize = -1, lastPanX = -1e9, lastPanY = -1e9, lastAngle = -1e9;
 				if (auto* as = g_arrowSlot.Get()) {
-					Vec2(as, L"SetSize", sz, sz);
-					Vec2(as, L"SetPosition", g_panX, g_panY);
+					if (sz != lastSize) {
+						Vec2(as, L"SetSize", sz, sz);
+						lastSize = sz;
+					}
+					if (g_panX != lastPanX || g_panY != lastPanY) {
+						Vec2(as, L"SetPosition", g_panX, g_panY);
+						lastPanX = g_panX, lastPanY = g_panY;
+					}
 				}
-				Float(arrow, L"SetRenderTransformAngle", static_cast<float>(s.followCameraRotation ? 0.0 : g_heading));
+				const double angle = s.followCameraRotation ? 0.0 : g_heading;
+				if (std::abs(angle - lastAngle) > 0.05) {
+					Float(arrow, L"SetRenderTransformAngle", static_cast<float>(angle));
+					lastAngle = angle;
+				}
 			}
 		}
 	}
@@ -798,11 +830,11 @@ namespace minimap
 
 		const ULONGLONG ms = GetTickCount64();
 		if (ms >= g_nextLayout) {
-			g_nextLayout = ms + 250;
+			g_nextLayout = ms + 500;
 			Layout();
 		}
 		if (visible && ms >= g_nextMarkers) {
-			g_nextMarkers = ms + 33;   // ~30 updates a second
+			g_nextMarkers = ms + 50;   // 20 updates a second; each only re-sets what moved
 			Markers(dt);
 		}
 		// the banner follows the minimap only while the minimap is on screen; otherwise HUD Position Manager's layout (or
@@ -811,6 +843,10 @@ namespace minimap
 		popup::Tick(g_rect, link, s.popupGap / std::max(0.1, g_dpi));
 		g_ownsPopup.store(link && popup::Placing());
 
+		// the status copy for the page and the tool: four times a second, never every frame
+		static ULONGLONG nextState = 0;
+		if (ms < nextState) return;
+		nextState = ms + 250;
 		Status(visible ? "on screen" : (gameplay ? "hidden (the hide key)" : "waiting (a menu is open)"));
 		std::scoped_lock l(g_stateLock);
 		json sample = json::array();

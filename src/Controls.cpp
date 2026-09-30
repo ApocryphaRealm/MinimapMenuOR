@@ -187,9 +187,6 @@ namespace controls
 			g_mousePanning.store(false);
 			return;
 		}
-		for (UINT vk = 0x08; vk < 0xFF; ++vk) {   // kept current so a capture starts from "nothing newly pressed"
-			g_vkDown[vk] = (::GetAsyncKeyState(static_cast<int>(vk)) & 0x8000) != 0;
-		}
 		const bool quiet = !a_gameplay || !GameInFront() || NowMs() - g_pageDrawnAt.load() < 250;
 		if (quiet) {
 			// a menu opened mid-press: nothing is decided, panning ends (the owner: gameplay only)
@@ -262,6 +259,9 @@ namespace controls
 
 	void BeginCapture(int a_target)
 	{
+		// a key already held when the capture starts is not a new press: the scan starts from the keys down now (the
+		// full scan runs only while a key is being bound - never every frame)
+		for (UINT vk = 0x08; vk < 0xFF; ++vk) g_vkDown[vk] = (::GetAsyncKeyState(static_cast<int>(vk)) & 0x8000) != 0;
 		Message("press a key (Escape cancels)", -1);
 		g_capture.store(a_target);
 		logger::info("controls: capturing the next key for the {} key", a_target == 1 ? "hide" : "zoom");

@@ -12,6 +12,8 @@ namespace popup
 		ULONGLONG  g_nextFind = 0, g_nextPass = 0;
 		bool       g_placing = false;
 		int        g_candidates = 0;
+		std::vector<ue::Handle> g_known;   // live banners found by the last scan (checked by their slots)
+		ULONGLONG  g_nextScan = 0;
 		double     g_tx = 0.0, g_ty = 0.0;   // our render translation, in the widget's own units
 		bool       g_translated = false;
 		int        g_geometryMode = 0;       // 0 unknown, 1 the cached geometry includes the translation, 2 it does not
@@ -38,8 +40,23 @@ namespace popup
 			const ULONGLONG now = GetTickCount64();
 			if (now < g_nextFind) return nullptr;
 			g_nextFind = now + 1000;
-			auto* cls = ue::Class(kAreaClass);
-			const auto all = cls ? ue::AllOf(cls) : std::vector<UE::UObject*>{};
+			// the whole object array only every 10 s; in between, the banners already known are measured again
+			std::vector<UE::UObject*> all;
+			if (now >= g_nextScan || g_known.empty()) {
+				g_nextScan = now + 10000;
+				auto* cls = ue::Class(kAreaClass);
+				all = cls ? ue::AllOf(cls) : std::vector<UE::UObject*>{};
+				g_known.clear();
+				for (auto* o : all) {
+					ue::Handle h;
+					h.Set(o);
+					g_known.push_back(h);
+				}
+			} else {
+				for (const auto& h : g_known) {
+					if (auto* o = h.Get()) all.push_back(o);
+				}
+			}
 			g_candidates = static_cast<int>(all.size());
 			UE::UObject* found = nullptr;
 			for (auto* w : all) {
@@ -53,7 +70,7 @@ namespace popup
 			g_translated = false;
 			g_geometryMode = 0;
 			if (found) Status(std::format("found the laid-out location banner ({} of {} live)", ue::NameOf(found), all.size()));
-			else Status(!cls ? "the location banner's class is not loaded yet"
+			else Status(all.empty() && !ue::Class(kAreaClass) ? "the location banner's class is not loaded yet"
 			                 : (all.empty() ? "no live location banner yet" : std::format("{} live banner(s), none laid out yet (it shows when you enter an area)", all.size())));
 			return found;
 		}
@@ -138,7 +155,7 @@ namespace popup
 		g_placing = true;
 		const ULONGLONG now = GetTickCount64();
 		if (now < g_nextPass) return;
-		g_nextPass = now + 100;
+		g_nextPass = now + 200;   // five times a second
 		double x = 0, y = 0, bw = 0, bh = 0, k = 1;
 		if (!Measure(w, x, y, bw, bh, k)) {
 			return;   // not laid out right now: asked again next pass

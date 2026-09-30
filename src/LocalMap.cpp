@@ -16,6 +16,11 @@ namespace localmap
 		RE::TESObjectCELL* g_cell = nullptr;  // the cell the player was in when the map was read
 		ULONGLONG  g_nextScan = 0, g_nextManager = 0;
 		int        g_reads = 0;
+		bool       g_foundThisMenu = false;
+		// the map's linear mapping, measured once per map read with the game's helper (three calls), then pure arithmetic
+		bool       g_linear = false;
+		std::array<double, 3> g_originWorld{};
+		std::array<double, 2> g_originMap{}, g_eastStep{}, g_northStep{};
 
 		std::mutex  g_lock;
 		std::string g_status = "the Map screen's local map has not been opened yet";
@@ -122,10 +127,14 @@ namespace localmap
 
 	void Tick(bool a_menuOpen)
 	{
-		if (!a_menuOpen) return;
+		if (!a_menuOpen) {
+			g_foundThisMenu = false;   // the next menu is searched again
+			return;
+		}
+		if (g_foundThisMenu) return;   // found in this menu already: no more scans until gameplay resumes
 		const ULONGLONG now = GetTickCount64();
 		if (now < g_nextScan) return;
-		g_nextScan = now + 500;   // an object-array scan while a menu is open: twice a second at most
+		g_nextScan = now + 1500;   // an object-array scan while a menu is open: every 1.5 s at most
 		auto* cls = ue::Class(kMapWidgetClass);
 		if (!cls) return;
 		for (auto* w : ue::AllOf(cls)) {
@@ -136,9 +145,11 @@ namespace localmap
 			if (mid != g_material.Get() || (player && player->parentCell != g_cell)) {
 				g_material.Set(mid);
 				g_cell = player ? player->parentCell : nullptr;
+				g_linear = false;   // a new map: its mapping is measured again
 				++g_reads;
 				Status(std::format("read the game's local map ({}; map size {:.0f} x {:.0f}) - shown on the minimap while you are on it", ue::NameOf(mid), g_mapW, g_mapH));
 			}
+			g_foundThisMenu = true;
 			return;
 		}
 	}
@@ -150,14 +161,24 @@ namespace localmap
 		auto* mgr = Manager();
 		std::array<double, 3> w{};
 		if (!mid || !mgr || !PlayerWorld(w)) return p;
-		std::array<double, 2> at{}, east{}, north{};
 		// Unreal's world axes: +X east, -Y north (Oblivion's +y) - one metre each way, so the map's own scale and
-		// rotation come from the game's helper rather than from an assumption
-		if (!Coordinates(mgr, w, at) || !Coordinates(mgr, { w[0] + 100.0, w[1], w[2] }, east) || !Coordinates(mgr, { w[0], w[1] - 100.0, w[2] }, north)) {
-			return p;
+		// rotation come from the game's helper rather than from an assumption. Measured once per map read; after that the
+		// mapping is linear arithmetic, no engine call per update.
+		if (!g_linear) {
+			std::array<double, 2> east{}, north{};
+			if (!Coordinates(mgr, w, g_originMap) || !Coordinates(mgr, { w[0] + 100.0, w[1], w[2] }, east) ||
+				!Coordinates(mgr, { w[0], w[1] - 100.0, w[2] }, north)) {
+				return p;
+			}
+			g_originWorld = w;
+			g_eastStep = { east[0] - g_originMap[0], east[1] - g_originMap[1] };
+			g_northStep = { north[0] - g_originMap[0], north[1] - g_originMap[1] };
+			g_linear = true;
 		}
-		const double ex = east[0] - at[0], ey = east[1] - at[1];
-		const double nx = north[0] - at[0], ny = north[1] - at[1];
+		const double de = (w[0] - g_originWorld[0]) / 100.0, dn = -(w[1] - g_originWorld[1]) / 100.0;   // metres east / north
+		const std::array<double, 2> at{ g_originMap[0] + g_eastStep[0] * de + g_northStep[0] * dn, g_originMap[1] + g_eastStep[1] * de + g_northStep[1] * dn };
+		const double ex = g_eastStep[0], ey = g_eastStep[1];
+		const double nx = g_northStep[0], ny = g_northStep[1];
 		const double unitsPerCm = std::hypot(ex, ey) / 100.0;
 		const double mapW = g_mapW > 1 ? g_mapW : 4096.0, mapH = g_mapH > 1 ? g_mapH : 4096.0;   // 4096: the local page's image (probe 5)
 		if (unitsPerCm <= 1e-9) return p;

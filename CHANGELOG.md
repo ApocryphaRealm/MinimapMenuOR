@@ -72,6 +72,24 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
 - The local map's size is read from the Map screen's MapImage brush (probe 5: 4096 x 4096; the page view model's
   MapSize reads 0) - for the Map-screen reading, which stays the fallback when the toggle is off.
 
+### Round 4b - per-frame work cut the Dragon's Eye Minimap way (2026-09-29)
+- The owner: "Make sure you have null pointer guards and refer to how Dragon's Eye Minimap optimized for FPS by not
+  constantly calling the local map per frame. So we want to limit per frame features."
+- DEM's two rendering switches carried over: [Rendering] bSkipWhileWorldSettles / iSettleMs (1500) - no new drawing of
+  the map during a load or for 1.5 s after one (the first sight of the player, going in or out of doors, a jump of more
+  than 50 m); the last picture stays, and ordinary travel never waits - and iRedrawIntervalMs (1000), the least time
+  between two of the minimap's own captures. The frame, markers and arrow keep updating either way.
+- What no longer runs every frame:
+  - the 247-key scan (only while a key is being bound, from the keys held when binding starts);
+  - the status copy for the page and TestBench (4 times a second);
+  - the player arrow and the local-map image (their engine calls now only when a value changed);
+  - the game's map-coordinate helper (3 calls once per map read, then linear arithmetic);
+  - the object-array scan for the location banner (every 10 s, known banners re-measured each second, placed 5 times
+    a second instead of 10);
+  - the object-array scan for the Map screen's map (every 1.5 s, and not again once found until gameplay resumes);
+  - the layout (twice a second); the markers (20 times a second, re-setting only what moved).
+- Null guard added where the map panel is made (a failed NewObject stops the build instead of adding nothing).
+
 ### Known gaps in this build
 - Untested: whether the game's capture draws the right things with the show-only list off, whether the pause map's
   local page still shows its own area after the minimap has captured (it shares the render targets), and the capture cost.

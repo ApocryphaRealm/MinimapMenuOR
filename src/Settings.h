@@ -41,6 +41,9 @@ namespace settings
 		float        recaptureMoveFraction = 0.25f;   // a new capture after moving this share of the width
 		std::int32_t mapQuarterTurns = 0;          // a correction if the drawn map comes out turned (0-3 quarter turns clockwise)
 		bool         mapMirror = false;            // a correction if it comes out mirrored
+		bool         skipWhileWorldSettles = true; // DEM: no redraw during a load and for iSettleMs after it
+		std::int32_t settleMs = 1500;
+		std::int32_t redrawIntervalMs = 1000;      // the least time between two of the minimap's own captures
 
 		// [Controls] - DEM's control logic (plan section 6a); keys from .MD\DEFAULT-KEYS.md
 		std::int32_t hideKey = 0x25;        // K: tap = hide / show, hold = pan (while holdHideToPan)

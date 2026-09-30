@@ -191,6 +191,8 @@ namespace page
 			Hint(TR("MarkQuestsHint", "A quest target beyond the edge stays on the rim, pointing the way."));
 			if (Switch(TR("MarkDoors", "Doors"), &s.markDoors)) Changed();
 			if (Switch(TR("MarkLocations", "Locations"), &s.markLocations)) Changed();
+			if (Switch(TR("FarOnRim", "Far locations on the rim"), &s.farLocationsOnRim)) Changed();
+			Hint(TR("FarOnRimHint", "A place beyond the edge stays on the rim, dimmed, pointing the way - as the compass shows it."));
 			if (Switch(TR("MarkHostiles", "Enemies"), &s.markHostiles)) Changed();
 			if (ImGui::SliderFloat(TR("IconScale", "Icon size"), &s.iconScale, 0.3f, 3.0f, "%.2f")) Changed();
 			SaveIfSettled();

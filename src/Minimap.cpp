@@ -44,6 +44,7 @@ namespace minimap
 		{
 			ue::Handle image, slot;
 			int        kind = -1;
+			bool       dim = false;
 			bool       shown = false;
 			double     x = -1e9, y = -1e9, size = 0;
 		};
@@ -493,11 +494,15 @@ namespace minimap
 			return vm;
 		}
 
-		void Place(Slot& a_s, int a_kind, double a_x, double a_y, double a_size)
+		void Place(Slot& a_s, int a_kind, double a_x, double a_y, double a_size, bool a_dim = false)
 		{
 			auto* img = a_s.image.Get();
 			auto* slot = a_s.slot.Get();
 			if (!img || !slot) return;
+			if (a_kind != a_s.kind || a_dim != a_s.dim) {
+				a_s.kind = -1;   // the colour below is set again with the brush
+				a_s.dim = a_dim;
+			}
 			if (a_kind != a_s.kind) {
 				bool ok = false;
 				if (a_kind == kKindQuest || a_kind == kKindHostile) {
@@ -506,7 +511,7 @@ namespace minimap
 					else Colour(img, 0.85f, 0.12f, 0.1f, 1.0f);
 				} else if (a_kind > 0 && a_kind < 13) {
 					ok = BrushFromMaterial(img, Asset(g_iconAssets[a_kind], kTypeIcon[a_kind]));
-					Colour(img, 1.0f, 1.0f, 1.0f, 1.0f);
+					Colour(img, 1.0f, 1.0f, 1.0f, a_dim ? 0.55f : 1.0f);
 				}
 				a_s.kind = ok ? a_kind : -2;
 			}
@@ -600,6 +605,7 @@ namespace minimap
 				int kind = -1;
 				double sz = icon;
 				bool   rim = false;
+				bool   dim = false;
 				if (m.quest || m.player) {
 					if (!s.markQuestTargets) continue;
 					kind = kKindQuest, sz = 18.0 * s.iconScale, rim = true;
@@ -609,12 +615,17 @@ namespace minimap
 				} else if (m.type > 0 && m.type < 12) {
 					if (!s.markLocations) continue;
 					kind = m.type;
+					rim = s.farLocationsOnRim;
 				} else {
 					continue;
 				}
 				double x = 0, y = 0;
 				if (!plot(m.angle, m.distance, sz * 0.5, rim, x, y)) continue;
-				Place(g_icons[static_cast<std::size_t>(used++)], kind, x, y, sz);
+				if (kind != kKindQuest && m.distance * pxPerCm > half - sz * 0.5) {
+					dim = true;   // held on the rim: it is farther than the map reaches
+					sz *= 0.8;
+				}
+				Place(g_icons[static_cast<std::size_t>(used++)], kind, x, y, sz, dim);
 			}
 			for (const auto& hd : hostiles) {
 				if (used >= kPool) break;

@@ -39,6 +39,11 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
   another mod left on it does not skew the placement.
 - The export MinimapMenu_OwnsLocationPopup() is true only while the minimap is on screen and placing the banner, so HUD
   Position Manager's layout applies whenever it is not (the primary agent's request).
+- Far locations on the rim ([Markers] bFarLocationsOnRim, on by default): a location beyond the map's reach stays on the
+  rim, dimmed and a little smaller, pointing the way as the compass shows it. The first reading explained the owner's
+  "a blank map with a compass marker and maybe a door": 5 compass markers, 2 drawn - the three locations were 69, 92
+  and 117 m away (if Distance is in centimetres), outside the 60 m reach, and only quest targets were kept on the rim.
+  The same reading matched the minimap's heading to the compass (152.9) and put the two doors at 11.5 and 15.6 m.
 
 ### Known gaps in this build
 - The map picture does not show the terrain around the player yet (the capture of route A waits for the M0 probes).

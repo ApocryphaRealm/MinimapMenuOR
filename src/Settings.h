@@ -50,6 +50,7 @@ namespace settings
 		bool  markLocations = true;
 		bool  markQuestTargets = true;
 		bool  markHostiles = false;
+		bool  farLocationsOnRim = true;   // a location beyond the reach stays on the rim, dimmed, pointing the way
 		float iconScale = 1.0f;
 
 		// [Log]

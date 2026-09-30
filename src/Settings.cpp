@@ -46,6 +46,7 @@ namespace settings
 			MM_ROW("Markers", "bDoors", kBool, markDoors, 1, 0, 1, "1 = doors on the minimap."),
 			MM_ROW("Markers", "bLocations", kBool, markLocations, 1, 0, 1, "1 = locations (cities, caves, forts, shrines...)."),
 			MM_ROW("Markers", "bQuestTargets", kBool, markQuestTargets, 1, 0, 1, "1 = quest targets; one beyond the edge stays on the rim, pointing the way."),
+			MM_ROW("Markers", "bFarLocationsOnRim", kBool, farLocationsOnRim, 1, 0, 1, "1 = a location beyond the edge stays on the rim, dimmed, pointing the way (as the compass shows it)."),
 			MM_ROW("Markers", "bHostiles", kBool, markHostiles, 0, 0, 1, "1 = enemies the compass shows, as red dots."),
 			MM_ROW("Markers", "fIconScale", kFloat, iconScale, 1, 0.3, 3, "The size of the icons."),
 			MM_ROW("Log", "uLogLevel", kInt, logLevel, 2, 0, 6, "0 trace, 1 debug, 2 info, 3 warnings, 4 errors, 5 critical, 6 off. Use 1 when reporting a problem."),

@@ -3,7 +3,7 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then entries sit under "Unreleased".
 
-## Unreleased - 2026-09-29 - untested (first test build)
+## 1.0.0 - 2026-09-30 - untested
 
 The owner, 2026-09-29: "start designing a minimap mod with an amf page for oblivion and use the same positioning logic
 as my dem mod", the location pop-up link, the name ("Let's just call it minimap menu"), K and L, DEM's control logic

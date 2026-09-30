@@ -43,7 +43,7 @@ namespace popup
 			auto* pc = ue::PlayerController();
 			static auto* lib = ue::Class(L"/Script/UMG.SlateBlueprintLibrary");
 			auto* cdo = lib ? lib->GetDefaultObject(false) : nullptr;
-			if (!a_w || !pc || !cdo) return false;
+			if (!a_w || !pc || ue::Dying(pc) || !cdo) return false;
 			ue::Call geo(a_w, L"GetCachedGeometry");
 			const auto gsize = geo.Size("ReturnValue");
 			if (!geo || gsize <= 0 || !geo.Run()) return false;
@@ -55,7 +55,7 @@ namespace popup
 				std::memcpy(g, geo.At("ReturnValue"), static_cast<std::size_t>(gsize));
 				const double local[2] = { a_lx, a_ly };
 				c.Set("LocalCoordinate", local);
-				c.Run();
+				if (!c.RunGuarded()) return false;   // the world-context call: fault-guarded (a quit, a load)
 				const auto vp = c.Get<std::array<double, 2>>("ViewportPosition");
 				a_vx = vp[0];
 				a_vy = vp[1];
@@ -142,7 +142,9 @@ namespace popup
 	Rect Tick(Widget a_which, const Rect& a_after, bool a_active, double a_gapUnits, bool a_fit, double a_scale)
 	{
 		auto& f = g_f[static_cast<int>(a_which)];
-		auto* w = Find(f);
+		// an inactive follower does not go looking (Find measures through the world, which a quit tears down): only one it
+		// still holds is put back
+		auto* w = a_active ? Find(f) : f.widget.Get();
 		if (!w) {
 			f.placing = false;
 			return {};

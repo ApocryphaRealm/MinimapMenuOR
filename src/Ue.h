@@ -56,8 +56,16 @@ namespace ue
 	// Blueprint): the parameter offset is read from the function's own property chain
 	bool CallFirst(UE::UObject* a_obj, const wchar_t* a_fn, const void* a_bytes, std::size_t a_size);
 
-	// the player controller (an object-array scan at most every 2 s until found, then a slot-checked handle)
+	// the player controller (an object-array scan at most every 2 s until found, then a slot-checked handle); nullptr
+	// while it is being destroyed (a quit or a load tears its world down before the object goes)
 	UE::UObject* PlayerController();
+
+	// a_o is on its way out: begin / finish destroyed, garbage, pending kill or unreachable (object or internal flags)
+	bool Dying(UE::UObject* a_o);
+
+	// ProcessEvent under a structured-exception guard: false when the engine faulted inside the call (its world torn down
+	// under it - the crash on quitting, 2026-09-30 01:49:42, GetViewportSize reading 0xF80 through a null world)
+	bool GuardedProcessEvent(UE::UObject* a_obj, UE::UFunction* a_fn, void* a_params);
 
 	template <class T>
 	T* At(void* a_base, std::int32_t a_offset)
@@ -108,6 +116,12 @@ namespace ue
 			}
 			return v;
 		}
+		// for a call whose world-context object may be torn down under it (a quit, a load): fault-guarded
+		bool RunGuarded()
+		{
+			return m_fn && m_obj && GuardedProcessEvent(m_obj, m_fn, m_params.data());
+		}
+
 		bool Run()
 		{
 			if (!m_fn || !m_obj) {

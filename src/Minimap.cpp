@@ -151,12 +151,12 @@ namespace minimap
 			auto* cls = ue::Class(a_classPath);
 			auto* pc = ue::PlayerController();
 			auto* cdo = lib ? lib->GetDefaultObject(false) : nullptr;
-			if (!cdo || !cls || !pc) return nullptr;
+			if (!cdo || !cls || !pc || ue::Dying(pc)) return nullptr;
 			ue::Call c(cdo, L"Create");
 			c.Set("WorldContextObject", pc);
 			c.Set("WidgetType", cls);
 			c.Set("OwningPlayer", pc);
-			c.Run();
+			if (!c.RunGuarded()) return nullptr;
 			return c.Get<UE::UObject*>("ReturnValue");
 		}
 
@@ -379,14 +379,21 @@ namespace minimap
 			auto* bg = g_bg.Get();
 			static auto* lib = ue::Class(L"/Script/UMG.WidgetLayoutLibrary");
 			auto* cdo = lib ? lib->GetDefaultObject(false) : nullptr;
-			if (!pc || !panelSlot || !bg || !cdo) return;
+			if (!pc || ue::Dying(pc) || !panelSlot || !bg || !cdo) return;
+			// fault-guarded: on a quit the controller outlives its world for a moment, and the engine read through the
+			// null world (the crash of 2026-09-30 01:49:42, exe+0x37E3FD7 reading 0xF80)
 			ue::Call size(cdo, L"GetViewportSize");
 			size.Set("WorldContextObject", pc);
-			size.Run();
+			if (!size.RunGuarded()) {
+				static bool logged = false;
+				if (!logged) logger::warn("minimap: the viewport could not be read (the world is going away) - the layout waits");
+				logged = true;
+				return;
+			}
 			const auto px = size.Get<std::array<double, 2>>("ReturnValue");
 			ue::Call scale(cdo, L"GetViewportScale");
 			scale.Set("WorldContextObject", pc);
-			scale.Run();
+			if (!scale.RunGuarded()) return;
 			const double dpi = std::max(0.1, static_cast<double>(scale.Get<float>("ReturnValue")));
 			if (px[0] <= 0 || px[1] <= 0) return;
 			g_viewportW = px[0] / dpi;
@@ -964,7 +971,7 @@ namespace minimap
 		}
 
 		const ULONGLONG ms = GetTickCount64();
-		if (ms >= g_nextLayout) {
+		if (gameplay && ms >= g_nextLayout) {   // never behind a menu: a quit tears the world down there (2026-09-30 01:49)
 			g_nextLayout = ms + 500;
 			Layout();
 		}

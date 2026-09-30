@@ -107,7 +107,7 @@ namespace capture
 				ue::Call c(cdo, L"CreateDynamicMaterialInstance");
 				c.Set("WorldContextObject", a_pc);
 				c.Set("Parent", parent);
-				c.Run();
+				if (!c.RunGuarded()) return nullptr;   // a world-context call: fault-guarded (a quit, a load)
 				mid = c.Get<UE::UObject*>("ReturnValue");
 				g_mid.Set(mid);
 				if (mid) logger::info("capture: our instance of the game's local-map material is {}", ue::NameOf(mid));
@@ -156,7 +156,7 @@ namespace capture
 					draw.Set("WorldContextObject", a_pc);
 					draw.Set("TextureRenderTarget", second);
 					draw.Set("Material", sobel);
-					sobelDrawn = draw.Run();
+					sobelDrawn = draw.RunGuarded();   // a world-context call: fault-guarded (a quit, a load)
 				}
 			}
 			Place(depth, d.loc, d.rot, d.ortho, d.mode);   // everything back the same frame

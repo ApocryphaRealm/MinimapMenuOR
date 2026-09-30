@@ -123,7 +123,7 @@ namespace ue
 		static Handle    cached;
 		static ULONGLONG lastScan = 0;
 		if (auto* pc = cached.Get()) {
-			return pc;
+			return Dying(pc) ? nullptr : pc;
 		}
 		const ULONGLONG now = GetTickCount64();
 		if (now - lastScan < 2000) {
@@ -164,6 +164,25 @@ namespace ue
 			logger::error("ue: KeyIndex read at 0x{:X}, expected 0xD0 - the property layout is not UE5's; the minimap cannot be built", keyIndex);
 		}
 		return g_state.load() > 0;
+	}
+
+	bool Dying(UE::UObject* a_o)
+	{
+		if (!a_o || !IsLive(a_o)) return true;
+		constexpr std::int32_t kObject = 0x00008000 | 0x00010000 | 0x20000000 | 0x40000000;   // BeginDestroyed, FinishDestroyed, PendingKill, Garbage
+		if (static_cast<std::int32_t>(a_o->objectFlags) & kObject) return true;
+		auto* item = UE::FUObjectArray::GetSingleton()->IndexToObject(a_o->internalIndex);
+		return item && item->HasAnyFlags(static_cast<UE::EInternalObjectFlags>((1 << 21) | (1 << 28) | (1 << 29)));   // Garbage, Unreachable, PendingKill
+	}
+
+	bool GuardedProcessEvent(UE::UObject* a_obj, UE::UFunction* a_fn, void* a_params)
+	{
+		__try {
+			a_obj->ProcessEvent(a_fn, a_params);
+			return true;
+		} __except (EXCEPTION_EXECUTE_HANDLER) {
+			return false;
+		}
 	}
 
 	bool IsLive(UE::UObject* a_o)

@@ -169,6 +169,17 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
   - Dragon's Eye Minimap's own lesson was already in place: the markers are placed in the same update as the map
     image's rotation, never a frame behind it.
 
+### Round 10 (2026-09-30)
+- **Fixed: a crash on quitting to the main menu** (01:49:42, EXCEPTION_ACCESS_VIOLATION reading 0xF80 in
+  GetViewportSize).
+  - Cause: the layout read the viewport every 500 ms even behind menus, with the cached player controller as the world
+    context. During a quit the controller outlives its world.
+  - Fix: the layout runs only in gameplay. A dying controller (destroyed, garbage, unreachable) is refused. Every call
+    that takes a world context goes through a fault-guarded ProcessEvent (Call::RunGuarded): the layout, the widget
+    Create, the popup's LocalToViewport and the capture's material and draw calls. A follower that isn't active doesn't
+    go looking for its widget.
+  - Logic library entry and gate rule or-world-context-calls-are-guarded of the same day.
+
 ### Known gaps in this build
 - Untested: whether the game's capture draws the right things with the show-only list off, whether the pause map's
   local page still shows its own area after the minimap has captured (it shares the render targets), and the capture cost.

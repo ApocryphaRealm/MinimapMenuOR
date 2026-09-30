@@ -143,6 +143,17 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
     stick, or with the left stick when the button is the left stick click.
   - A framework without the capture keeps the old two-choice list. AMF.h is the 1.0.4 SDK copy.
 
+### Round 8 (the owner, 2026-09-30)
+- **Changed: the compass's size setting is now anchored to the owner's setting.** The owner: "whatever I currently have
+  should be set as the true boundary for the bounds of the mini map and the compass". Their setting was fCompassScale
+  2.65 with the fit on, which put the visible bar exactly across the minimap, so the bar is 1/2.65 of the compass
+  widget's box. With the fit on, the bar itself is now sized to the minimap's width, up or down, and 1.00 is that width.
+  The owner's INI moves from 2.65 to 1.00 at install, so the look is unchanged. The banner keeps shrink-only text
+  fitting.
+- **Changed: the gap can go below 0 (down to -200 px)** (the owner: "the gap should let me go closer to the mini map
+  because it's currently zeroed out but there's still some space in between"). The compass's box has empty space of its
+  own above the bar.
+
 ### Known gaps in this build
 - Untested: whether the game's capture draws the right things with the show-only list off, whether the pause map's
   local page still shows its own area after the minimap has captured (it shares the render targets), and the capture cost.

@@ -175,7 +175,16 @@ namespace popup
 		// size in the minimap menu isn't responsive" - the fit used to cap the size, so any setting above the fitted scale
 		// did nothing, and with a wide compass that was every setting above about 0.4)
 		double want = std::clamp(a_scale, 0.1, 3.0);
-		if (a_fit && natural > a_after.w) want *= a_after.w / natural;
+		if (a_which == Widget::kCompass) {
+			// the compass' visible bar is a share of its widget box: the owner's setting of 2026-09-30 (fCompassScale 2.65
+			// with the fit on - "whatever I currently have should be set as the true boundary") put the bar exactly on the
+			// minimap's width, so the bar is 1 / 2.65 of the box. Fitted, the BAR is sized to the minimap (up or down), and
+			// 1.00 is that width.
+			constexpr double kBarShare = 1.0 / 2.65;
+			if (a_fit) want *= a_after.w / (natural * kBarShare);
+		} else if (a_fit && natural > a_after.w) {
+			want *= a_after.w / natural;   // the banner: its text only ever shrinks to the minimap's width
+		}
 		want = std::max(0.1, want);
 		if (std::abs(want - f.sc) > 0.005) {
 			Scale(f, w, want);

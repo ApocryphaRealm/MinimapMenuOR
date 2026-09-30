@@ -109,10 +109,11 @@ namespace page
 			ImGui::BeginDisabled(!s.pairCompass);
 			if (Switch(TR("FitCompass", "Fit the compass to the minimap's width"), &s.fitCompassToMinimap)) Changed();
 			if (precise::SliderFloat(TR("CompassScale", "Compass size"), &s.compassScale, 0.3f, 3.0f, "%.2f")) Changed();
-			Hint(TR("CompassScaleHint", "On top of the fit to the minimap's width: raise it until it reaches the minimap's edges."));
+			Hint(TR("CompassScaleHint", "With the fit on, 1.00 puts the compass bar exactly across the minimap's width."));
 			ImGui::EndDisabled();
 			ImGui::BeginDisabled(!s.linkLocationPopup && !s.pairCompass);
-			if (precise::SliderFloat(TR("PopupGap", "Gap"), &s.popupGap, 0.0f, 100.0f, "%.0f px")) Changed();
+			if (precise::SliderFloat(TR("PopupGap", "Gap"), &s.popupGap, -200.0f, 100.0f, "%.0f px")) Changed();
+			Hint(TR("PopupGapHint", "Below 0 moves the compass or banner closer still - the compass has some empty space of its own above its bar."));
 			ImGui::EndDisabled();
 
 			ImGui::SeparatorText(TR("SectionMap", "Map"));

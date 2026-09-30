@@ -107,6 +107,16 @@ namespace page
 			ImGui::SetNextItemWidth(Wide());
 			if (ImGui::Combo(TR("Image", "Map picture"), &s.mapImage, images, 2)) Changed();
 			Hint(TR("ImageGameHint", "The game draws its local map when you open it on the Map screen (Left / Right, or the triggers, switch to it). The minimap shows it while you are on that map, parchment elsewhere."));
+			if (Switch(TR("AlwaysDraw", "Draw the local map around me at all times"), &s.alwaysDrawLocalMap)) Changed();
+			Hint(TR("AlwaysDrawHint", "The minimap draws the area around you itself, with the game's own map capture and wall lines - not only where you opened the Map screen's local map."));
+			ImGui::BeginDisabled(!s.alwaysDrawLocalMap);
+			if (ImGui::SliderFloat(TR("CaptureWidth", "Area drawn around me"), &s.captureWidthMetres, 40.0f, 600.0f, "%.0f m")) Changed();
+			if (ImGui::SliderFloat(TR("InteriorCut", "Indoors, cut above my feet at"), &s.interiorCutMetres, 0.5f, 10.0f, "%.1f m")) Changed();
+			const char* turns[4] = { TR("Turn0", "No correction"), TR("Turn1", "Turn a quarter clockwise"), TR("Turn2", "Turn half way"), TR("Turn3", "Turn a quarter anticlockwise") };
+			ImGui::SetNextItemWidth(Wide());
+			if (ImGui::Combo(TR("MapTurn", "If the drawn map is turned"), &s.mapQuarterTurns, turns, 4)) Changed();
+			if (Switch(TR("MapMirror", "The drawn map is mirrored"), &s.mapMirror)) Changed();
+			ImGui::EndDisabled();
 			if (ImGui::SliderFloat(TR("Radius", "Reach at normal zoom"), &s.radiusMetres, 10.0f, 500.0f, "%.0f m")) Changed();
 			if (Switch(TR("FollowCamera", "Turn with the camera"), &s.followCameraRotation)) Changed();
 			Hint(TR("FollowCameraHint", "On: up is where you look. Off: north is always up."));

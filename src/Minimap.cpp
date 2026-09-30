@@ -1,5 +1,6 @@
 #include "Minimap.h"
 
+#include "Capture.h"
 #include "Controls.h"
 #include "LocalMap.h"
 #include "Popup.h"
@@ -554,9 +555,41 @@ namespace minimap
 			const bool   circle = g_layout.shape == 1;
 			const double cx = half + g_panX, cy = half + g_panY;
 
-			// the game's own local map around the player, where it covers the player (LocalMap.h)
+			// the game's own local map around the player: drawn by the minimap itself (Capture.h), or read from the Map
+			// screen where the player opened it (LocalMap.h)
 			if (auto* mapImg = g_mapImg.Get()) {
-				const auto lp = s.mapImage == 1 ? localmap::Place(cx, cy, pxPerCm, up) : localmap::Placement{};
+				localmap::Placement lp;
+				const auto cap = capture::Current();
+				if (s.mapImage == 1 && s.alwaysDrawLocalMap && cap.valid) {
+					std::array<double, 3> w{};
+					static ue::Getter getPawn(L"K2_GetPawn");
+					static ue::Getter location(L"K2_GetActorLocation");
+					UE::UObject* pawn = nullptr;
+					auto* pc = ue::PlayerController();
+					if (pc && getPawn.Get(pc, pawn) && pawn && ue::IsLive(pawn) && location.Get(pawn, w)) {
+						// the capture looks straight down with north at the top and east to the right (the game's
+						// CameraRotationAngles); Unreal's +Y is south, so down the image
+						double u = (w[0] - cap.cx) / cap.width, v = (w[1] - cap.cy) / cap.width;   // from the centre
+						for (int k = 0; k < (s.mapQuarterTurns & 3); ++k) {   // a correction: quarter turns clockwise
+							const double t = u;
+							u = -v, v = t;
+						}
+						if (s.mapMirror) u = -u;
+						const double S = cap.width * pxPerCm;
+						lp.ok = std::abs(u) < 0.5 && std::abs(v) < 0.5;
+						lp.material = cap.material;
+						lp.width = lp.height = S;
+						lp.pivotX = u + 0.5;
+						lp.pivotY = v + 0.5;
+						lp.x = cx - lp.pivotX * S;
+						lp.y = cy - lp.pivotY * S;
+						lp.angle = -up - 90.0 * (s.mapQuarterTurns & 3);
+					}
+				} else if (s.mapImage == 1) {
+					lp = localmap::Place(cx, cy, pxPerCm, up);
+				}
+				const double mirror = s.mapMirror && s.alwaysDrawLocalMap ? -1.0 : 1.0;
+				if (lp.ok) Vec2(mapImg, L"SetRenderScale", mirror, 1.0);
 				if (lp.ok) {
 					if (lp.material != g_mapShownMaterial) {
 						BrushFromMaterial(mapImg, lp.material);
@@ -756,6 +789,7 @@ namespace minimap
 		}
 
 		const bool visible = gameplay && g_shownRuntime;
+		capture::Tick(visible);   // the always-drawn local map: only while the minimap is on screen in gameplay
 		if (visible != g_rootShown) {
 			SetVisible(g_root.Get(), visible);
 			g_rootShown = visible;
@@ -787,7 +821,7 @@ namespace minimap
 		g_state = { { "built", g_builds }, { "gameplay", gameplay }, { "shown_runtime", g_shownRuntime }, { "on_screen", g_rootShown },
 			{ "rect", { g_rect.x, g_rect.y, g_rect.w, g_rect.h } }, { "viewport_units", { g_viewportW, g_viewportH } }, { "dpi", g_dpi },
 			{ "zoomed_in", g_zoomIn }, { "pan", { g_panX, g_panY } }, { "heading", g_heading },
-			{ "local_map", localmap::State() }, { "local_map_shown", g_mapImgShown },
+			{ "local_map", localmap::State() }, { "local_map_shown", g_mapImgShown }, { "capture", capture::State() },
 			{ "markers", { { "listed", g_listed }, { "drawn", g_drawn }, { "hostiles", g_hostiles }, { "layout_ok", g_ml.ok }, { "sample", sample } } } };
 	}
 

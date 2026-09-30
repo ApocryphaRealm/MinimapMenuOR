@@ -33,6 +33,14 @@ namespace settings
 		std::int32_t mapImage = 1;     // 0 parchment only, 1 the game's own local map where it covers the player (else parchment)
 		float        radiusMetres = 60.0f;
 		bool         followCameraRotation = true;
+		bool         alwaysDrawLocalMap = true;    // the owner: draw the local map around the player at all times (Capture.h)
+
+		// [Rendering] - the always-drawn local map
+		float        captureWidthMetres = 180.0f;  // the area drawn around the player (the owner: "local to the area the player inhabits")
+		float        interiorCutMetres = 2.5f;     // indoors, the camera's height above the feet: ceilings and upper floors stay out
+		float        recaptureMoveFraction = 0.25f;   // a new capture after moving this share of the width
+		std::int32_t mapQuarterTurns = 0;          // a correction if the drawn map comes out turned (0-3 quarter turns clockwise)
+		bool         mapMirror = false;            // a correction if it comes out mirrored
 
 		// [Controls] - DEM's control logic (plan section 6a); keys from .MD\DEFAULT-KEYS.md
 		std::int32_t hideKey = 0x25;        // K: tap = hide / show, hold = pan (while holdHideToPan)

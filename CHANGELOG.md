@@ -58,8 +58,24 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
 - Research: 4. plans\Minimap Menu\ANALYSIS-4438-AND-LOCAL-MAP.md (Minimap 4438's approach from its public page - its
   own capture and post-process Sobel, no markers; nothing of it is used).
 
+### Round 4 - the local map drawn at all times (2026-09-29)
+- The owner: "a toggle that forces the minimap to render at all times instead of only when the local map is called in
+  the regular map. But you'll have to keep it local to the area the player inhabits and not like the entire map."
+  [Map] bAlwaysDrawLocalMap (on by default): the minimap borrows the game's own local-map pipeline for one frame - the
+  two capture components on the player controller are saved, pointed straight down over the player covering
+  [Rendering] fCaptureWidthMetres (180 m), captured, the game's Sobel material drawn into RT_LocalMapSecondPass, and
+  put back the same frame - and shows it through its own instance of M_LocalMapUI (IsExterior set). Indoors the camera
+  sits fInteriorCutMetres (2.5 m) above the feet so ceilings stay out. A new capture after moving a quarter of the width
+  or changing cell; only while the minimap is on screen in gameplay.
+- iMapQuarterTurns / bMapMirror: corrections in case the drawn map comes out turned or mirrored (north at the top and
+  east to the right is assumed from the game's CameraRotationAngles).
+- The local map's size is read from the Map screen's MapImage brush (probe 5: 4096 x 4096; the page view model's
+  MapSize reads 0) - for the Map-screen reading, which stays the fallback when the toggle is off.
+
 ### Known gaps in this build
-- The map picture does not show the terrain around the player yet (the capture of route A waits for the M0 probes).
+- Untested: whether the game's capture draws the right things with the show-only list off, whether the pause map's
+  local page still shows its own area after the minimap has captured (it shares the render targets), and the capture cost.
+- In the circle shape the drawn map's corners show outside the round frame (no round mask yet).
 - The compass list's Angle and Distance units are assumed (a compass bearing in degrees, centimetres); minimap.status
   shows raw samples so the first round can confirm them.
 - While panning with the stick, the camera also turns (AMF's stick capture governs its own menu, not the game camera).

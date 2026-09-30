@@ -171,8 +171,12 @@ namespace popup
 		// the widget's own size and scale without this mod's scale; the size it should have now
 		const double kParent = k / std::max(0.01, f.sc);           // viewport units per local unit, before our scale
 		const double natural = bw / std::max(0.01, f.sc);          // its width at scale 1
-		double       want = std::clamp(a_scale, 0.1, 3.0);
-		if (a_fit && natural * want > a_after.w) want = std::max(0.1, a_after.w / natural);
+		// the size setting applies ON TOP of the fit: fitted, 1.00 is the minimap's width (the owner, 2026-09-29: "The compass
+		// size in the minimap menu isn't responsive" - the fit used to cap the size, so any setting above the fitted scale
+		// did nothing, and with a wide compass that was every setting above about 0.4)
+		double want = std::clamp(a_scale, 0.1, 3.0);
+		if (a_fit && natural > a_after.w) want *= a_after.w / natural;
+		want = std::max(0.1, want);
 		if (std::abs(want - f.sc) > 0.005) {
 			Scale(f, w, want);
 			return f.placed;   // measured again on the next pass, at the new size

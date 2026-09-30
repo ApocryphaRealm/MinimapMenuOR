@@ -102,12 +102,14 @@ namespace page
 			ImGui::BeginDisabled(!s.linkLocationPopup);
 			if (Switch(TR("FitPopup", "Fit its text to the minimap's width"), &s.fitPopupToMinimap)) Changed();
 			if (precise::SliderFloat(TR("PopupScale", "Banner size"), &s.popupScale, 0.3f, 1.5f, "%.2f")) Changed();
+			Hint(TR("PopupScaleHint", "On top of the fit: with the fit on, 1.00 is the minimap's width."));
 			ImGui::EndDisabled();
 			if (Switch(TR("PairCompass", "The compass goes with the minimap"), &s.pairCompass)) Changed();
 			Hint(TR("PairCompassHint", "The compass moves under the minimap (above it at a bottom corner), where the location banner was; the banner goes after the compass."));
 			ImGui::BeginDisabled(!s.pairCompass);
 			if (Switch(TR("FitCompass", "Fit the compass to the minimap's width"), &s.fitCompassToMinimap)) Changed();
 			if (precise::SliderFloat(TR("CompassScale", "Compass size"), &s.compassScale, 0.3f, 1.5f, "%.2f")) Changed();
+			Hint(TR("CompassScaleHint", "On top of the fit: with the fit on, 1.00 is the minimap's width."));
 			ImGui::EndDisabled();
 			ImGui::BeginDisabled(!s.linkLocationPopup && !s.pairCompass);
 			if (precise::SliderFloat(TR("PopupGap", "Gap"), &s.popupGap, 0.0f, 100.0f, "%.0f px")) Changed();

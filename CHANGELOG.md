@@ -108,6 +108,14 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
 - Precise sliders: a keyboard or D-pad nudge moves exactly one unit of the last digit shown (include/PreciseSlider.h;
   the owner: "all of our sliders are precise sliders and they don't jump more than one numerical unit per D-pad nudge").
 
+### Round 6 (the owner's report, 2026-09-29)
+- Round 5 confirmed in game: "The minimap appears inside and outside" - the always-drawn local map works in both.
+- The compass size setting works (the owner: "The compass size in the minimap menu isn't responsive"). With the fit on
+  (the default), the fit capped the size: any size above the fitted scale did nothing, and the compass is so much wider
+  than the minimap that this was every setting above about 0.4. The size now applies on top of the fit, so with the fit
+  on, 1.00 is the minimap's width. The banner's size had the same flaw and is fixed the same way. Also in this build:
+  the precise SliderInt (345b317).
+
 ### Known gaps in this build
 - Untested: whether the game's capture draws the right things with the show-only list off, whether the pause map's
   local page still shows its own area after the minimap has captured (it shares the render targets), and the capture cost.

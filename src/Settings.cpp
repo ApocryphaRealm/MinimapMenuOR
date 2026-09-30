@@ -31,7 +31,7 @@ namespace settings
 			MM_ROW("Display", "fOpacity", kFloat, opacity, 1, 0.1, 1, "How opaque the minimap is."),
 			MM_ROW("Display", "bLinkLocationPopup", kBool, linkLocationPopup, 1, 0, 1, "1 = the game's location banner (the area name that appears when you enter a place) follows the minimap: below it at a top corner, above it at a bottom corner."),
 			MM_ROW("Display", "fPopupGap", kFloat, popupGap, 8, 0, 100, "The gap between the minimap and the location banner, in screen pixels."),
-			MM_ROW("Map", "iMapImage", kInt, mapImage, 0, 0, 1, "0 = parchment, 1 = the game's own local map (experimental: what the game's map last drew)."),
+			MM_ROW("Map", "iMapImage", kInt, mapImage, 1, 0, 1, "0 = parchment only, 1 = the game's own local map (its wall and path lines) wherever you have opened the Map screen's local map, parchment elsewhere."),
 			MM_ROW("Map", "fRadiusMetres", kFloat, radiusMetres, 60, 10, 500, "How far from you the edge of the minimap reaches at the normal zoom, in metres."),
 			MM_ROW("Map", "bFollowCameraRotation", kBool, followCameraRotation, 1, 0, 1, "1 = the map turns with the camera (up is where you look); 0 = north is always up."),
 			MM_ROW("Controls", "iHideKey", kInt, hideKey, 37, 0, 255, "Keyboard keys are DirectInput scan codes, 0 = none. 37 = K: tap to hide or show the minimap; hold to pan it (below)."),

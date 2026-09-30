@@ -45,6 +45,19 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
   and 117 m away (if Distance is in centimetres), outside the 60 m reach, and only quest targets were kept on the rim.
   The same reading matched the minimap's heading to the compass (152.9) and put the two doors at 11.5 and 15.6 m.
 
+### Round 3 - the game's own local map (2026-09-29)
+- The owner: "we need to be able to see the actual lines for the local map ... it should read from the local map if
+  there is a local map". The game draws its local map's wall and path lines itself (its captures, its Sobel material,
+  M_LocalMapUI) and its Map screen shows them through a material instance (VModern_NavigableMapWidget
+  .LocalMapMaterialDynamic). While a menu is open the minimap READS that material from the game's map page; in gameplay
+  it shows the same material, placed with the game's own helper ULocalMapManager::GetLocalMapCoordinates (the player's
+  point and one metre east and north of it give the map's scale and rotation - nothing assumed). Where that map does not
+  cover the player (another cell, or beyond it) the parchment shows. Nothing is captured or drawn by the mod.
+- [Map] iMapImage now defaults to 1 (the game's local map where there is one); the test install moves a player INI still
+  holding the old default 0.
+- Research: 4. plans\Minimap Menu\ANALYSIS-4438-AND-LOCAL-MAP.md (Minimap 4438's approach from its public page - its
+  own capture and post-process Sobel, no markers; nothing of it is used).
+
 ### Known gaps in this build
 - The map picture does not show the terrain around the player yet (the capture of route A waits for the M0 probes).
 - The compass list's Angle and Distance units are assumed (a compass bearing in degrees, centimetres); minimap.status

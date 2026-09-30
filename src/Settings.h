@@ -30,7 +30,7 @@ namespace settings
 		float        popupGap = 8.0f;
 
 		// [Map]
-		std::int32_t mapImage = 0;     // 0 the paper, 1 the game's own local-map material (what its pause map last captured)
+		std::int32_t mapImage = 1;     // 0 parchment only, 1 the game's own local map where it covers the player (else parchment)
 		float        radiusMetres = 60.0f;
 		bool         followCameraRotation = true;
 

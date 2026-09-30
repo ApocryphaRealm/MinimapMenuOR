@@ -1,6 +1,7 @@
 #include "Minimap.h"
 
 #include "Controls.h"
+#include "LocalMap.h"
 #include "Popup.h"
 #include "Settings.h"
 #include "Ue.h"
@@ -12,7 +13,6 @@ namespace minimap
 	namespace
 	{
 		constexpr const wchar_t* kPaper = L"/Game/ArtOriginal/textures/menus/map/local/T_mappaper01.T_mappaper01";
-		constexpr const wchar_t* kLocalMapMaterial = L"/Game/Materials/M_LocalMapUI.M_LocalMapUI";
 		constexpr const wchar_t* kPlayerArrow = L"/Game/Art/UI/Modern/GameMenuLayer/Map/T_Map_Player_Location.T_Map_Player_Location";
 		constexpr const wchar_t* kMarkerFill = L"/Game/Art/UI/Modern/GameMenuLayer/Map/T_Map_Marker_Filling.T_Map_Marker_Filling";
 		constexpr const wchar_t* kHudViewModel = L"/Script/Altar.VHUDMainViewModel";
@@ -50,7 +50,9 @@ namespace minimap
 		};
 
 		// ---- the widget (game thread) ----
-		ue::Handle g_root, g_panel, g_panelSlot, g_bg, g_arrow, g_arrowSlot, g_frame;
+		ue::Handle g_root, g_panel, g_panelSlot, g_bg, g_arrow, g_arrowSlot, g_frame, g_mapImg, g_mapSlot;
+		UE::UObject* g_mapShownMaterial = nullptr;   // the material the local-map image shows now (compared, never read)
+		bool         g_mapImgShown = false;
 		std::array<Slot, kPool> g_icons;
 		int       g_builds = 0;
 		ULONGLONG g_lastBuildTry = 0;
@@ -301,6 +303,19 @@ namespace minimap
 			const float margin[4] = { 0, 0, 0, 0 };
 			ue::CallFirst(bgSlot, L"SetOffsets", margin, sizeof(margin));
 
+			// the game's own local map, between the parchment and the markers (LocalMap.h)
+			UE::UObject* mapSlot = nullptr;
+			auto*        mapImg = NewImage(*tree, panel, (L"MinimapMenuLocalMap" + n).c_str(), &mapSlot);
+			if (mapImg) {
+				Anchors(mapSlot, 0, 0, 0, 0);
+				ue::CallFirst(mapSlot, L"SetAutoSize", &no, sizeof(no));
+				SetVisible(mapImg, false);
+			}
+			g_mapImg.Set(mapImg);
+			g_mapSlot.Set(mapSlot);
+			g_mapShownMaterial = nullptr;
+			g_mapImgShown = false;
+
 			for (int i = 0; i < kPool; ++i) {
 				UE::UObject* s = nullptr;
 				auto* img = NewImage(*tree, panel, (L"MinimapMenuIcon" + n + L"_" + std::to_wstring(i)).c_str(), &s);
@@ -396,15 +411,11 @@ namespace minimap
 				if (auto* panel = g_panel.Get()) Float(panel, L"SetRenderOpacity", s.opacity);
 			}
 			if (image != g_layout.image) {
-				bool ok = false;
-				if (image == 1) {
-					static ue::Handle material;
-					ok = BrushFromMaterial(bg, Asset(material, kLocalMapMaterial));
-				} else {
-					static ue::Handle paper;
-					ok = BrushFromTexture(bg, Asset(paper, kPaper));
-				}
-				logger::info("minimap: map image = {} ({})", image == 1 ? "the game's local-map material" : "parchment", ok ? "set" : "NOT FOUND");
+				// the parchment is always the ground; the game's local map (image 1) is drawn over it where it exists
+				static ue::Handle paper;
+				const bool ok = BrushFromTexture(bg, Asset(paper, kPaper));
+				logger::info("minimap: map picture = {} (parchment {})", image == 1 ? "the game's local map where there is one, else parchment" : "parchment",
+					ok ? "set" : "NOT FOUND");
 				g_layout.shape = -1;   // a new brush: its draw type is applied again below
 			}
 			if (shape != g_layout.shape || side != g_layout.size) {
@@ -542,6 +553,28 @@ namespace minimap
 			const double up = s.followCameraRotation ? g_heading : 0.0;
 			const bool   circle = g_layout.shape == 1;
 			const double cx = half + g_panX, cy = half + g_panY;
+
+			// the game's own local map around the player, where it covers the player (LocalMap.h)
+			if (auto* mapImg = g_mapImg.Get()) {
+				const auto lp = s.mapImage == 1 ? localmap::Place(cx, cy, pxPerCm, up) : localmap::Placement{};
+				if (lp.ok) {
+					if (lp.material != g_mapShownMaterial) {
+						BrushFromMaterial(mapImg, lp.material);
+						g_mapShownMaterial = lp.material;
+					}
+					if (auto* ms = g_mapSlot.Get()) {
+						Vec2(ms, L"SetPosition", lp.x, lp.y);
+						Vec2(ms, L"SetSize", lp.width, lp.height);
+					}
+					Vec2(mapImg, L"SetRenderTransformPivot", lp.pivotX, lp.pivotY);
+					Float(mapImg, L"SetRenderTransformAngle", static_cast<float>(lp.angle));
+				}
+				if (lp.ok != g_mapImgShown) {
+					SetVisible(mapImg, lp.ok);
+					g_mapImgShown = lp.ok;
+					logger::info("minimap: {}", lp.ok ? "showing the game's local map" : "the game's local map does not cover you here - parchment");
+				}
+			}
 
 			std::vector<RawMarker> raw;
 			if (vm && g_ml.ok) {
@@ -702,6 +735,7 @@ namespace minimap
 			}
 		}
 
+		localmap::Tick(!gameplay);   // while a menu is open: read the game's map page if it holds a local map
 		controls::Tick(gameplay, g_shownRuntime, dt);
 		if (controls::TakeToggleShown()) {
 			g_shownRuntime = !g_shownRuntime;   // a runtime toggle: bShowOnGameStart is not written (DEM)
@@ -753,6 +787,7 @@ namespace minimap
 		g_state = { { "built", g_builds }, { "gameplay", gameplay }, { "shown_runtime", g_shownRuntime }, { "on_screen", g_rootShown },
 			{ "rect", { g_rect.x, g_rect.y, g_rect.w, g_rect.h } }, { "viewport_units", { g_viewportW, g_viewportH } }, { "dpi", g_dpi },
 			{ "zoomed_in", g_zoomIn }, { "pan", { g_panX, g_panY } }, { "heading", g_heading },
+			{ "local_map", localmap::State() }, { "local_map_shown", g_mapImgShown },
 			{ "markers", { { "listed", g_listed }, { "drawn", g_drawn }, { "hostiles", g_hostiles }, { "layout_ok", g_ml.ok }, { "sample", sample } } } };
 	}
 

@@ -103,9 +103,10 @@ namespace page
 			ImGui::EndDisabled();
 
 			ImGui::SeparatorText(TR("SectionMap", "Map"));
-			const char* images[2] = { TR("ImagePaper", "Parchment"), TR("ImageGame", "The game's local map (experimental)") };
+			const char* images[2] = { TR("ImagePaper", "Parchment"), TR("ImageGame", "The game's local map") };
 			ImGui::SetNextItemWidth(Wide());
 			if (ImGui::Combo(TR("Image", "Map picture"), &s.mapImage, images, 2)) Changed();
+			Hint(TR("ImageGameHint", "The game draws its local map when you open it on the Map screen (Left / Right, or the triggers, switch to it). The minimap shows it while you are on that map, parchment elsewhere."));
 			if (ImGui::SliderFloat(TR("Radius", "Reach at normal zoom"), &s.radiusMetres, 10.0f, 500.0f, "%.0f m")) Changed();
 			if (Switch(TR("FollowCamera", "Turn with the camera"), &s.followCameraRotation)) Changed();
 			Hint(TR("FollowCameraHint", "On: up is where you look. Off: north is always up."));

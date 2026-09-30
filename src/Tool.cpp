@@ -19,7 +19,7 @@ namespace tool
 		void StatusTool(void*, const char*, void* a_sink, TestBenchAPI::WriteFn a_write)
 		{
 			Write(a_sink, a_write, { { "ok", true }, { "version", MM_VERSION }, { "minimap", minimap::State() }, { "popup", popup::State() },
-				{ "controls", controls::State() }, { "owns_location_popup", minimap::OwnsLocationPopup() }, { "settings", settings::GetAll() } });
+				{ "controls", controls::State() }, { "owns_location_popup", minimap::OwnsLocationPopup() }, { "owns_compass", minimap::OwnsCompass() }, { "settings", settings::GetAll() } });
 		}
 
 		void DriveTool(void*, const char* a_args, void* a_sink, TestBenchAPI::WriteFn a_write)

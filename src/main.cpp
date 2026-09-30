@@ -55,6 +55,12 @@ extern "C" __declspec(dllexport) bool MinimapMenu_OwnsLocationPopup()
 	return minimap::OwnsLocationPopup();
 }
 
+// the same for the compass while [Display] bPairCompass has it under (or over) the minimap
+extern "C" __declspec(dllexport) bool MinimapMenu_OwnsCompass()
+{
+	return minimap::OwnsCompass();
+}
+
 OBSE_PLUGIN_LOAD(const OBSE::LoadInterface* a_obse)
 {
 	KeepPreviousLog();

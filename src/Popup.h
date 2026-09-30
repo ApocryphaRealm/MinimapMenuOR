@@ -1,17 +1,18 @@
 #pragma once
 
 // ============================================================================================================
-// The game's location pop-up follows the minimap's corner (the owner, 2026-09-29: "add a setting in the minimap that
-// links the two together so that whenever you switch which corner it's pinned to, the widget also switches its
-// position, just like with DEM"). The widget is /Game/UI/Modern/HUD/WBP_ModernHud_Area (the area banner - RegionText,
-// AreaDiscoveredText, TrespassingText), built once with the HUD inside WBP_ModernTopStats' vertical box: nothing on
-// its path is a CanvasPanelSlot, so it is moved by its RENDER TRANSLATION (as HUD Position Manager OR moves it) -
-// centred on the minimap, just below it at a top corner and just above it at a bottom corner (DEM's
-// ApplyTitlePosition). Its place is read back from its cached geometry each pass, so the translation converges on the
-// target whether or not the cached geometry already includes the translation.
-//
-// HUD Position Manager OR moves the same widget as its "Location" element; while this link is on the minimap's export
-// MinimapMenu_OwnsLocationPopup() returns true and HPM stands down on that element (agreed with the agent that owns HPM).
+// HUD widgets that follow the minimap's corner, moved by their RENDER TRANSLATION (nothing on their path is a
+// CanvasPanelSlot - as HUD Position Manager OR moves them):
+//   * the location banner, /Game/UI/Modern/HUD/WBP_ModernHud_Area (the owner, 2026-09-29: "add a setting in the minimap
+//     that links the two together so that whenever you switch which corner it's pinned to, the widget also switches its
+//     position, just like with DEM") - with its text scaled to fit under the minimap ("a text size that fits well
+//     beneath the minimap");
+//   * optionally the compass, WBP_ModernHud_Compass ("an optional toggle in the minimap to pair the compass to be where
+//     the location pop up was ... just below the minimap or just above it if it's in the bottom of the screen") - then
+//     the banner goes after the compass.
+// Each is centred on the minimap, just below it at a top corner and just above it at a bottom corner, and scaled down to
+// the minimap's width when wider. Only live, laid-out instances are used (the template is never laid out - round 1).
+// HUD Position Manager OR stands down on each while the minimap's export for it returns true.
 // ============================================================================================================
 
 namespace popup
@@ -23,8 +24,12 @@ namespace popup
 		bool   anchoredTop = true;
 	};
 
-	// game thread; a_active false puts the game's own place back (once)
-	void Tick(const Rect& a_map, bool a_active, double a_gapUnits);
-	bool Placing();   // the live banner is found and this mod is placing it (what the export tells HUD Position Manager)
+	enum class Widget { kBanner, kCompass };
+
+	// game thread. a_after: the rectangle to stack after (the minimap, or the compass placed before). a_active false puts
+	// the game's own place back (once). a_fit: scale down to a_after's width; a_scale: a further scale. Returns the
+	// widget's placed rectangle (invalid when it is not placed right now).
+	Rect Tick(Widget a_which, const Rect& a_after, bool a_active, double a_gapUnits, bool a_fit, double a_scale);
+	bool Placing(Widget a_which);   // found, laid out and placed by this mod (what the exports tell HUD Position Manager)
 	json State();
 }

@@ -20,6 +20,7 @@ namespace minimap
 	enum class Action { kToggleShown, kToggleZoom, kRecentre, kRebuild };
 	void Queue(Action a_action);   // any thread; applied on the next tick
 
-	bool OwnsLocationPopup();   // any thread: the link is on and the minimap exists (HUD Position Manager OR asks)
+	bool OwnsLocationPopup();   // any thread: the minimap is placing the location banner (HUD Position Manager OR asks)
+	bool OwnsCompass();         // any thread: the minimap is placing the compass (bPairCompass)
 	json State();               // any thread
 }

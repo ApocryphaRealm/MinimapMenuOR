@@ -3,6 +3,7 @@
 #include <imgui.h>
 
 #include "AMF.h"
+#include "PreciseSlider.h"
 #include "Controls.h"
 #include "Minimap.h"
 #include "Popup.h"
@@ -85,21 +86,31 @@ namespace page
 			ImGui::SetNextItemWidth(Wide());
 			if (ImGui::Combo(TR("Corner", "Corner"), &s.anchor, corners, 4)) Changed();
 			const int c = std::clamp(s.anchor, 0, 3);
-			if (ImGui::SliderFloat(TR("OffsetX", "Nudge right (this corner)"), &s.offsetX[c], -500.0f, 500.0f, "%.0f px")) Changed();
-			if (ImGui::SliderFloat(TR("OffsetY", "Nudge down (this corner)"), &s.offsetY[c], -500.0f, 500.0f, "%.0f px")) Changed();
+			if (precise::SliderFloat(TR("OffsetX", "Nudge right (this corner)"), &s.offsetX[c], -500.0f, 500.0f, "%.0f px")) Changed();
+			if (precise::SliderFloat(TR("OffsetY", "Nudge down (this corner)"), &s.offsetY[c], -500.0f, 500.0f, "%.0f px")) Changed();
 			Hint(TR("OffsetHint", "Each corner keeps its own nudge. 0 sits flush with the screen edges; right and down are always positive."));
-			if (ImGui::SliderFloat(TR("Scale", "Size"), &s.scale, 0.1f, 1.5f, "%.2f")) Changed();
+			if (precise::SliderFloat(TR("Scale", "Size"), &s.scale, 0.1f, 1.5f, "%.2f")) Changed();
 			Hint(TR("ScaleHint", "Capped at a quarter of the screen."));
 			const char* shapes[2] = { TR("Square", "Square"), TR("Circle", "Circle") };
 			ImGui::SetNextItemWidth(Wide());
 			if (ImGui::Combo(TR("Shape", "Shape"), &s.shape, shapes, 2)) Changed();
-			if (ImGui::SliderFloat(TR("Opacity", "Opacity"), &s.opacity, 0.1f, 1.0f, "%.2f")) Changed();
+			if (precise::SliderFloat(TR("Opacity", "Opacity"), &s.opacity, 0.1f, 1.0f, "%.2f")) Changed();
 
 			ImGui::SeparatorText(TR("SectionPopup", "Location banner"));
-			if (Switch(TR("LinkPopup", "The location banner follows the minimap"), &s.linkLocationPopup)) Changed();
-			Hint(TR("LinkPopupHint", "The name that appears when you enter a place moves under the minimap at a top corner and above it at a bottom corner."));
+			if (Switch(TR("LinkPopup", "The minimap places the location banner"), &s.linkLocationPopup)) Changed();
+			Hint(TR("LinkPopupHint", "On: the name that appears when you enter a place goes under the minimap at a top corner and above it at a bottom corner. Off: HUD Position Manager (or the game) places it."));
 			ImGui::BeginDisabled(!s.linkLocationPopup);
-			if (ImGui::SliderFloat(TR("PopupGap", "Gap"), &s.popupGap, 0.0f, 100.0f, "%.0f px")) Changed();
+			if (Switch(TR("FitPopup", "Fit its text to the minimap's width"), &s.fitPopupToMinimap)) Changed();
+			if (precise::SliderFloat(TR("PopupScale", "Banner size"), &s.popupScale, 0.3f, 1.5f, "%.2f")) Changed();
+			ImGui::EndDisabled();
+			if (Switch(TR("PairCompass", "The compass goes with the minimap"), &s.pairCompass)) Changed();
+			Hint(TR("PairCompassHint", "The compass moves under the minimap (above it at a bottom corner), where the location banner was; the banner goes after the compass."));
+			ImGui::BeginDisabled(!s.pairCompass);
+			if (Switch(TR("FitCompass", "Fit the compass to the minimap's width"), &s.fitCompassToMinimap)) Changed();
+			if (precise::SliderFloat(TR("CompassScale", "Compass size"), &s.compassScale, 0.3f, 1.5f, "%.2f")) Changed();
+			ImGui::EndDisabled();
+			ImGui::BeginDisabled(!s.linkLocationPopup && !s.pairCompass);
+			if (precise::SliderFloat(TR("PopupGap", "Gap"), &s.popupGap, 0.0f, 100.0f, "%.0f px")) Changed();
 			ImGui::EndDisabled();
 
 			ImGui::SeparatorText(TR("SectionMap", "Map"));
@@ -110,14 +121,15 @@ namespace page
 			if (Switch(TR("AlwaysDraw", "Draw the local map around me at all times"), &s.alwaysDrawLocalMap)) Changed();
 			Hint(TR("AlwaysDrawHint", "The minimap draws the area around you itself, with the game's own map capture and wall lines - not only where you opened the Map screen's local map."));
 			ImGui::BeginDisabled(!s.alwaysDrawLocalMap);
-			if (ImGui::SliderFloat(TR("CaptureWidth", "Area drawn around me"), &s.captureWidthMetres, 40.0f, 600.0f, "%.0f m")) Changed();
-			if (ImGui::SliderFloat(TR("InteriorCut", "Indoors, cut above my feet at"), &s.interiorCutMetres, 0.5f, 10.0f, "%.1f m")) Changed();
+			if (precise::SliderFloat(TR("CaptureWidth", "Area drawn around me"), &s.captureWidthMetres, 40.0f, 600.0f, "%.0f m")) Changed();
+			if (precise::SliderFloat(TR("InteriorCut", "Indoors, cut above my feet at"), &s.interiorCutMetres, 0.5f, 10.0f, "%.1f m")) Changed();
 			const char* turns[4] = { TR("Turn0", "No correction"), TR("Turn1", "Turn a quarter clockwise"), TR("Turn2", "Turn half way"), TR("Turn3", "Turn a quarter anticlockwise") };
 			ImGui::SetNextItemWidth(Wide());
 			if (ImGui::Combo(TR("MapTurn", "If the drawn map is turned"), &s.mapQuarterTurns, turns, 4)) Changed();
 			if (Switch(TR("MapMirror", "The drawn map is mirrored"), &s.mapMirror)) Changed();
 			ImGui::EndDisabled();
-			if (ImGui::SliderFloat(TR("Radius", "Reach at normal zoom"), &s.radiusMetres, 10.0f, 500.0f, "%.0f m")) Changed();
+			if (precise::SliderFloat(TR("Radius", "Reach at normal zoom"), &s.radiusMetres, 10.0f, 500.0f, "%.0f m")) Changed();
+			if (precise::SliderFloat(TR("RadiusInterior", "Reach indoors"), &s.radiusInteriorMetres, 5.0f, 300.0f, "%.0f m")) Changed();
 			if (Switch(TR("FollowCamera", "Turn with the camera"), &s.followCameraRotation)) Changed();
 			Hint(TR("FollowCameraHint", "On: up is where you look. Off: north is always up."));
 			SaveIfSettled();
@@ -174,11 +186,11 @@ namespace page
 			if (Switch(TR("HoldToPan", "Hold the hide key to pan the map"), &s.holdHideToPan)) Changed();
 			Hint(TR("HoldToPanHint", "A tap hides or shows the minimap. Held, the mouse (or the stick) pans it until you let go; then it recentres."));
 			ImGui::BeginDisabled(!s.holdHideToPan);
-			if (ImGui::SliderFloat(TR("HoldSecs", "Hold for (seconds)"), &s.holdToPanSecs, 0.05f, 2.0f, "%.2f")) Changed();
-			if (ImGui::SliderFloat(TR("PanSpeed", "Pan speed"), &s.panSpeed, 0.1f, 5.0f, "%.1f")) Changed();
+			if (precise::SliderFloat(TR("HoldSecs", "Hold for (seconds)"), &s.holdToPanSecs, 0.05f, 2.0f, "%.2f")) Changed();
+			if (precise::SliderFloat(TR("PanSpeed", "Pan speed"), &s.panSpeed, 0.1f, 5.0f, "%.1f")) Changed();
 			ImGui::EndDisabled();
-			if (ImGui::SliderFloat(TR("ZoomNormal", "Normal zoom"), &s.zoomDefault, 0.25f, 8.0f, "%.2fx")) Changed();
-			if (ImGui::SliderFloat(TR("ZoomIn", "Other zoom"), &s.zoomZoomedIn, 0.25f, 8.0f, "%.2fx")) Changed();
+			if (precise::SliderFloat(TR("ZoomNormal", "Normal zoom"), &s.zoomDefault, 0.25f, 8.0f, "%.2fx")) Changed();
+			if (precise::SliderFloat(TR("ZoomIn", "Other zoom"), &s.zoomZoomedIn, 0.25f, 8.0f, "%.2fx")) Changed();
 
 			ImGui::SeparatorText(TR("SectionController", "Controller"));
 			if (Switch(TR("PadButton", "A controller button hides and pans too"), &s.gamepadHideButton)) Changed();
@@ -205,7 +217,7 @@ namespace page
 			if (Switch(TR("FarOnRim", "Far locations on the rim"), &s.farLocationsOnRim)) Changed();
 			Hint(TR("FarOnRimHint", "A place beyond the edge stays on the rim, dimmed, pointing the way - as the compass shows it."));
 			if (Switch(TR("MarkHostiles", "Enemies"), &s.markHostiles)) Changed();
-			if (ImGui::SliderFloat(TR("IconScale", "Icon size"), &s.iconScale, 0.3f, 3.0f, "%.2f")) Changed();
+			if (precise::SliderFloat(TR("IconScale", "Icon size"), &s.iconScale, 0.3f, 3.0f, "%.2f")) Changed();
 			SaveIfSettled();
 		}
 

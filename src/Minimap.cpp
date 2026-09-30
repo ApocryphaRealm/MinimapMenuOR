@@ -79,7 +79,7 @@ namespace minimap
 		// ---- shared with other threads ----
 		std::mutex         g_queueLock;
 		std::vector<Action> g_queue;
-		std::atomic<bool>  g_ownsPopup{ false };
+		std::atomic<bool>  g_ownsPopup{ false }, g_ownsCompass{ false };
 		std::mutex         g_stateLock;
 		json               g_state = json::object();
 		std::string        g_status = "not built";
@@ -553,7 +553,9 @@ namespace minimap
 			const double side = g_layout.size;
 			const double half = side * 0.5;
 			const double zoom = std::max(0.25f, g_zoomIn ? s.zoomZoomedIn : s.zoomDefault);
-			const double radiusCm = std::max(100.0, s.radiusMetres * 100.0 / zoom);
+			auto*        playerNow = RE::PlayerCharacter::GetSingleton();
+			const bool   indoors = playerNow && static_cast<bool>(playerNow->GetInterior());
+			const double radiusCm = std::max(100.0, (indoors ? s.radiusInteriorMetres : s.radiusMetres) * 100.0 / zoom);
 			const double pxPerCm = half / radiusCm;
 			const double up = s.followCameraRotation ? g_heading : 0.0;
 			const bool   circle = g_layout.shape == 1;
@@ -780,7 +782,9 @@ namespace minimap
 				g_rootShown = false;
 			}
 			g_ownsPopup.store(false);
-			popup::Tick(g_rect, false, 0.0);
+			g_ownsCompass.store(false);
+			popup::Tick(popup::Widget::kCompass, g_rect, false, 0.0, false, 1.0);
+			popup::Tick(popup::Widget::kBanner, g_rect, false, 0.0, false, 1.0);
 			controls::Tick(false, false, dt);
 			Status("off (bEnabled = 0)");
 			return;
@@ -840,8 +844,13 @@ namespace minimap
 		// the banner follows the minimap only while the minimap is on screen; otherwise HUD Position Manager's layout (or
 		// the game's) applies - and the export says so (the primary agent's request, 2026-09-29)
 		const bool link = s.linkLocationPopup && g_rect.valid && visible;
-		popup::Tick(g_rect, link, s.popupGap / std::max(0.1, g_dpi));
-		g_ownsPopup.store(link && popup::Placing());
+		const double gap = s.popupGap / std::max(0.1, g_dpi);
+		const bool   pair = s.pairCompass && g_rect.valid && visible;
+		const auto   compassRect = popup::Tick(popup::Widget::kCompass, g_rect, pair, gap, s.fitCompassToMinimap, s.compassScale);
+		// the banner after the compass when the compass is paired and placed, else after the minimap
+		popup::Tick(popup::Widget::kBanner, compassRect.valid ? compassRect : g_rect, link, gap, s.fitPopupToMinimap, s.popupScale);
+		g_ownsPopup.store(link && popup::Placing(popup::Widget::kBanner));
+		g_ownsCompass.store(pair && popup::Placing(popup::Widget::kCompass));
 
 		// the status copy for the page and the tool: four times a second, never every frame
 		static ULONGLONG nextState = 0;
@@ -868,6 +877,7 @@ namespace minimap
 	}
 
 	bool OwnsLocationPopup() { return g_ownsPopup.load(); }
+	bool OwnsCompass() { return g_ownsCompass.load(); }
 
 	json State()
 	{

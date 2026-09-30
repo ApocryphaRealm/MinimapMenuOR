@@ -28,10 +28,16 @@ namespace settings
 		float        opacity = 1.0f;
 		bool         linkLocationPopup = true;   // the game's area banner follows the minimap's corner (plan section 5)
 		float        popupGap = 8.0f;
+		bool         fitPopupToMinimap = true;   // the banner's text scaled down to the minimap's width
+		float        popupScale = 1.0f;
+		bool         pairCompass = false;        // the compass under (or over) the minimap, where the banner was; the banner after it
+		bool         fitCompassToMinimap = true;
+		float        compassScale = 1.0f;
 
 		// [Map]
 		std::int32_t mapImage = 1;     // 0 parchment only, 1 the game's own local map where it covers the player (else parchment)
 		float        radiusMetres = 60.0f;
+		float        radiusInteriorMetres = 25.0f;   // interiors are smaller: a reach of their own
 		bool         followCameraRotation = true;
 		bool         alwaysDrawLocalMap = true;    // the owner: draw the local map around the player at all times (Capture.h)
 

@@ -90,6 +90,24 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
   - the layout (twice a second); the markers (20 times a second, re-setting only what moved).
 - Null guard added where the map panel is made (a failed NewObject stops the build instead of adding nothing).
 
+### Round 5 (the owner's report, 2026-09-29)
+- The local map is drawn indoors now. The owner: "The local map appears in the exterior, but not in the interior." The
+  log showed the settle window re-arming itself every check indoors - it compared the player's interior flag with the
+  LAST CAPTURE's, which only a capture updates, and the wait kept any capture from coming. The window has its own record.
+- A reach of its own indoors, [Map] fRadiusInteriorMetres (25 m; the owner: "we might have to have a separate zoom
+  setting for interiors versus exteriors").
+- The location banner's text is scaled down to fit the minimap's width ([Display] bFitPopupToMinimap, fPopupScale; the
+  owner: "a text size that fits well beneath the minimap").
+- The banner switch is labelled "The minimap places the location banner" - off hands it to HUD Position Manager (or the
+  game), as the owner asked ("release control of the location pop up to wherever the HUD position manager sets it").
+- The compass can go with the minimap ([Display] bPairCompass, off by default; bFitCompassToMinimap, fCompassScale): under
+  it at a top corner, above it at a bottom corner, where the banner was, and the banner after the compass (the owner:
+  "an optional toggle in the minimap to pair the compass to be where the location pop up was"). A second export,
+  MinimapMenu_OwnsCompass(), for HUD Position Manager's Compass element. The banner and the compass share one follower
+  (Popup.cpp), which now also scales.
+- Precise sliders: a keyboard or D-pad nudge moves exactly one unit of the last digit shown (include/PreciseSlider.h;
+  the owner: "all of our sliders are precise sliders and they don't jump more than one numerical unit per D-pad nudge").
+
 ### Known gaps in this build
 - Untested: whether the game's capture draws the right things with the show-only list off, whether the pause map's
   local page still shows its own area after the minimap has captured (it shares the render targets), and the capture cost.

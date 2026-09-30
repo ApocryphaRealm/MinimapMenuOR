@@ -18,6 +18,7 @@ namespace capture
 		ULONGLONG  g_nextCheck = 0, g_lastCapture = 0, g_settleUntil = 0;
 		std::array<double, 3> g_lastPos{};
 		bool       g_havePos = false;
+		bool       g_seenInterior = false;   // the settle window's own record (g_interior is the last CAPTURE's)
 		bool       g_force = true;
 		int        g_captures = 0;
 		double     g_lastMicros = 0;
@@ -200,11 +201,12 @@ namespace capture
 		// DEM's settle window: a load (the first sight of the player), going in or out of doors, or a teleport (a jump of
 		// more than 50 m between two checks) holds the redraw for iSettleMs - the world is still streaming in
 		const bool jumped = g_havePos && std::hypot(w[0] - g_lastPos[0], w[1] - g_lastPos[1]) > 5000.0;
-		if (!g_havePos || interior != g_interior || jumped) {
+		if (!g_havePos || interior != g_seenInterior || jumped) {
 			g_settleUntil = now + static_cast<ULONGLONG>(std::max(0, s.settleMs));
 		}
 		g_lastPos = w;
 		g_havePos = true;
+		g_seenInterior = interior;
 		if (s.skipWhileWorldSettles && now < g_settleUntil) {
 			Status("waiting for the world to settle");
 			return;

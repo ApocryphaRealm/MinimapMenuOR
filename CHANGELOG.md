@@ -3,7 +3,7 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then entries sit under "Unreleased".
 
-## 1.0.0 - 2026-09-30 - untested
+## 1.0.0 - 2026-09-30 - working
 
 ### Release (2026-09-30)
 - **Changed: no controller button by default** (the owner, at the finalize: "R3 is the target lock button, so don't map

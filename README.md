@@ -10,7 +10,9 @@ A minimap in Oblivion Remastered's own HUD, configured on its own page in the Ap
 - **Keys:** K taps to hide and holds to pan; L taps between two zoom levels. The right stick click does the same on a
   controller. Keys are rebindable on the page.
 
-Status: first test build, untested. See `CHANGELOG.md`.
+**Requires:** OBSE64 and the Apocrypha Menu Framework (Oblivion Remastered) 1.0.4 or later.
+
+Status: test builds. See `CHANGELOG.md`.
 
 ## Building
 

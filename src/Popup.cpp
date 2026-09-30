@@ -18,6 +18,10 @@ namespace popup
 			double         tx = 0, ty = 0, sc = 1;   // what this mod wrote
 			int            geometryMode = 0;          // 0 unknown, 1 the cached geometry includes the render transform, 2 it does not
 			double         lastX = 0, lastY = 0;
+			// a move written and not yet seen in the cached geometry: the viewport shift it should make, and since when
+			// (a stale geometry made every pass add the same correction again - the compass ran to X 440719, 2026-09-30)
+			double         pendDX = 0, pendDY = 0;
+			ULONGLONG      pendSince = 0;
 			Rect           placed;
 			std::string    status = "not found yet";
 			json           last = json::object();
@@ -194,10 +198,35 @@ namespace popup
 		}
 		const double wantX = a_after.x + a_after.w * 0.5 - bw * 0.5;
 		const double wantY = a_after.anchoredTop ? a_after.y + a_after.h + a_gapUnits : a_after.y - a_gapUnits - bh;
+		// a translation this far out is a runaway: back to the game's own place, and the geometry is learned again
+		constexpr double kRunaway = 8000.0;
+		if (std::abs(f.tx) > kRunaway || std::abs(f.ty) > kRunaway) {
+			logger::warn("popup: {}: translation ({:.0f}, {:.0f}) ran away - put back to the game's place", f.name, f.tx, f.ty);
+			Translate(f, w, 0.0, 0.0);
+			f.geometryMode = 0;
+			f.pendDX = f.pendDY = 0.0;
+			f.pendSince = 0;
+			return f.placed;
+		}
+		// the last move not yet in the cached geometry: no new correction on top of it (it would be the same one again)
+		if (f.pendSince != 0) {
+			const double seenX = x - f.lastX, seenY = y - f.lastY;
+			const bool shown = std::hypot(seenX - f.pendDX, seenY - f.pendDY) < 0.5 * std::hypot(f.pendDX, f.pendDY) + 1.0;
+			if (!shown && f.geometryMode != 2) {
+				if (now - f.pendSince < 2000) return f.placed;
+				logger::info("popup: {}: a move did not show in the cached geometry within 2 s - learned again", f.name);
+				f.geometryMode = 0;
+			}
+			f.pendDX = f.pendDY = 0.0;
+			f.pendSince = 0;
+		}
 		// the geometry includes the translation (the case seen in game): move by the difference; otherwise from the base
 		const double tx = f.geometryMode == 2 ? (wantX - x) / kParent : f.tx + (wantX - x) / kParent;
 		const double ty = f.geometryMode == 2 ? (wantY - y) / kParent : f.ty + (wantY - y) / kParent;
 		if (std::abs(tx - f.tx) > 0.5 || std::abs(ty - f.ty) > 0.5) {
+			f.pendDX = (tx - f.tx) * kParent;
+			f.pendDY = (ty - f.ty) * kParent;
+			f.pendSince = now;
 			Translate(f, w, tx, ty);
 			Status(f, std::format("following the minimap ({})", a_after.anchoredTop ? "below" : "above"));
 		}

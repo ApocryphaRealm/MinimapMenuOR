@@ -154,6 +154,21 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
   because it's currently zeroed out but there's still some space in between"). The compass's box has empty space of its
   own above the bar.
 
+### Round 9 (the owner's report, 2026-09-30)
+- The owner: "The compass gap is good now."
+- **Fixed: enemy dots still swung with the camera** (the owner: "whenever I rotate the camera ... it moves the enemy
+  marker all over the place along with the rotation"; they pointed to Dragon's Eye Minimap, which once had the same
+  problem).
+  - Cause: round 7's world-position path never ran. It matched each Unreal body to its reference by the form ID in the
+    pawn's TESRefComponent, and that never matches (Camera Configuration Menu's speaker lookup showed the same). No
+    enemy body was found, and every dot fell back to the compass' angles, which turn with the camera.
+  - Fix: the enemies now come from the player's own detection list (HUD Position Manager's sneak ring read, probed live
+    the same day): actors in combat with the player, alive. Each one's body comes through the game's pairing (its
+    IVPairableItem pairing entry holds the Unreal actor).
+  - The log says which path placed the enemies whenever that changes.
+  - Dragon's Eye Minimap's own lesson was already in place: the markers are placed in the same update as the map
+    image's rotation, never a frame behind it.
+
 ### Known gaps in this build
 - Untested: whether the game's capture draws the right things with the show-only list off, whether the pause map's
   local page still shows its own area after the minimap has captured (it shares the render targets), and the capture cost.

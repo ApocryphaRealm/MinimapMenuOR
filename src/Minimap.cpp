@@ -483,40 +483,60 @@ namespace minimap
 		ULONGLONG               g_nextHostileScan = 0;
 		std::string             g_hostileSource = "none";
 
-		RE::Actor* ActorOf(UE::UObject* a_pawn)
+		// The actors around the player, from the player's own HighProcess detection list (+0x2B8 on the process, the process
+		// at +0x138 on the actor; entries { Actor* ... } - HUD Position Manager's sneak ring read, probed live 2026-09-30).
+		// Fault-guarded and C-only (no destructors in the guarded frame): raw pointers out, checked afterwards.
+		constexpr std::ptrdiff_t kProcessOffset = 0x138;
+		constexpr std::ptrdiff_t kDetectionList = 0x2B8;
+
+		int NearbyActorsRaw(std::uintptr_t* a_out, int a_cap)
 		{
-			static UE::UClass*  s_class = nullptr;
-			static std::int32_t s_off = -1;
-			auto* cls = a_pawn ? a_pawn->GetClass() : nullptr;
-			if (!cls) return nullptr;
-			if (cls != s_class) {
-				s_class = cls;
-				s_off = ue::Offset(cls, "TESRefComponent");
+			__try {
+				auto* player = RE::PlayerCharacter::GetSingleton();
+				if (!player) return 0;
+				const auto base = reinterpret_cast<std::uintptr_t>(player);
+				const auto proc = *reinterpret_cast<const std::uintptr_t*>(base + kProcessOffset);
+				if (!proc) return 0;
+				struct Node { std::uintptr_t item; const Node* next; };
+				int n = 0, steps = 0;
+				for (auto* node = *reinterpret_cast<const Node* const*>(proc + kDetectionList); node && steps < 128 && n < a_cap; node = node->next, ++steps) {
+					if (!node->item) continue;
+					const auto actor = *reinterpret_cast<const std::uintptr_t*>(node->item);
+					if (actor && actor != base) a_out[n++] = actor;
+				}
+				return n;
+			} __except (EXCEPTION_EXECUTE_HANDLER) {
+				return -1;
 			}
-			if (s_off < 0) return nullptr;
-			auto* comp = *reinterpret_cast<UE::UObject* const*>(reinterpret_cast<const std::uint8_t*>(a_pawn) + s_off);
-			if (!comp || !ue::IsLive(comp)) return nullptr;
-			const auto id = reinterpret_cast<UE::UVTESObjectRefComponent*>(comp)->formIDInstance;
-			auto* form = id ? RE::TESForm::LookupByID(id) : nullptr;
-			if (!form) return nullptr;
-			const auto t = form->GetFormType();
-			return t == RE::FormType::ActorCharacter || t == RE::FormType::ActorCreature ? static_cast<RE::Actor*>(form) : nullptr;
 		}
 
+		// The enemies: actors around the player in combat with the player, alive, each with its Unreal body through the
+		// game's pairing (every reference is an IVPairableItem whose pairing entry holds its actor). The pawn's
+		// TESRefComponent form ID never matched a reference (Camera Configuration Menu's speaker lookup, 2026-09-30), so the
+		// first scan found no enemy body at all and every dot fell back to the compass' drifting angles.
 		void ScanHostilePawns()
 		{
 			g_hostilePawns.clear();
-			static auto* pawnClass = ue::Class(L"/Script/Altar.VPairedPawn");
-			auto*        player = RE::PlayerCharacter::GetSingleton();
-			if (!pawnClass || !player) return;
-			for (auto* p : ue::AllOf(pawnClass)) {
-				auto* actor = ActorOf(p);
-				if (!actor || actor == player || actor->IsDead(false)) continue;
-				if (actor->IsInCombat(false) && actor->GetCombatTarget() == player) {
-					ue::Handle h;
-					h.Set(p);
-					g_hostilePawns.push_back(h);
-				}
+			auto* player = RE::PlayerCharacter::GetSingleton();
+			if (!player) return;
+			std::array<std::uintptr_t, 64> raw{};
+			const int n = NearbyActorsRaw(raw.data(), static_cast<int>(raw.size()));
+			if (n < 0) {
+				static bool logged = false;
+				if (!logged) logger::warn("minimap: reading the detection list faulted - enemies fall back to the compass' angles");
+				logged = true;
+				return;
+			}
+			for (int i = 0; i < n; ++i) {
+				auto* actor = reinterpret_cast<RE::Actor*>(raw[static_cast<std::size_t>(i)]);
+				const auto t = actor->GetFormType();
+				if (t != RE::FormType::ActorCharacter && t != RE::FormType::ActorCreature) continue;
+				if (actor->IsDead(false) || !actor->IsInCombat(false) || actor->GetCombatTarget() != player) continue;
+				auto* entry = static_cast<RE::IVPairableItem*>(actor)->pairingEntry;
+				if (!entry || !entry->isPaired || !entry->hostItem || !ue::IsLive(entry->hostItem)) continue;
+				ue::Handle h;
+				h.Set(entry->hostItem);
+				g_hostilePawns.push_back(h);
 			}
 		}
 
@@ -825,6 +845,15 @@ namespace minimap
 				}
 			}
 			g_hostileSource = hostiles.empty() ? "none" : fromWorld > 0 ? std::format("{} from their positions", fromWorld) : "the compass' angles";
+			{
+				// which path placed the enemies, whenever it changes (the log could not say it in the 2026-09-30 round)
+				static std::string s_lastSource;
+				const std::string kind = hostiles.empty() ? "none" : fromWorld > 0 ? "positions" : "compass";
+				if (kind != s_lastSource) {
+					logger::info("minimap: enemies - {} (the compass lists {}, bodies found {})", g_hostileSource, hostiles.size(), g_hostilePawns.size());
+					s_lastSource = kind;
+				}
+			}
 			for (int i = used; i < kPool; ++i) {
 				auto& sl = g_icons[static_cast<std::size_t>(i)];
 				if (sl.shown) {

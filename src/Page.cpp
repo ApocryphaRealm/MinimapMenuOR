@@ -101,15 +101,15 @@ namespace page
 			Hint(TR("LinkPopupHint", "On: the name that appears when you enter a place goes under the minimap at a top corner and above it at a bottom corner. Off: HUD Position Manager (or the game) places it."));
 			ImGui::BeginDisabled(!s.linkLocationPopup);
 			if (Switch(TR("FitPopup", "Fit its text to the minimap's width"), &s.fitPopupToMinimap)) Changed();
-			if (precise::SliderFloat(TR("PopupScale", "Banner size"), &s.popupScale, 0.3f, 1.5f, "%.2f")) Changed();
-			Hint(TR("PopupScaleHint", "On top of the fit: with the fit on, 1.00 is the minimap's width."));
+			if (precise::SliderFloat(TR("PopupScale", "Banner size"), &s.popupScale, 0.3f, 3.0f, "%.2f")) Changed();
+			Hint(TR("PopupScaleHint", "On top of the fit to the minimap's width: raise it until it reaches the minimap's edges."));
 			ImGui::EndDisabled();
 			if (Switch(TR("PairCompass", "The compass goes with the minimap"), &s.pairCompass)) Changed();
 			Hint(TR("PairCompassHint", "The compass moves under the minimap (above it at a bottom corner), where the location banner was; the banner goes after the compass."));
 			ImGui::BeginDisabled(!s.pairCompass);
 			if (Switch(TR("FitCompass", "Fit the compass to the minimap's width"), &s.fitCompassToMinimap)) Changed();
-			if (precise::SliderFloat(TR("CompassScale", "Compass size"), &s.compassScale, 0.3f, 1.5f, "%.2f")) Changed();
-			Hint(TR("CompassScaleHint", "On top of the fit: with the fit on, 1.00 is the minimap's width."));
+			if (precise::SliderFloat(TR("CompassScale", "Compass size"), &s.compassScale, 0.3f, 3.0f, "%.2f")) Changed();
+			Hint(TR("CompassScaleHint", "On top of the fit to the minimap's width: raise it until it reaches the minimap's edges."));
 			ImGui::EndDisabled();
 			ImGui::BeginDisabled(!s.linkLocationPopup && !s.pairCompass);
 			if (precise::SliderFloat(TR("PopupGap", "Gap"), &s.popupGap, 0.0f, 100.0f, "%.0f px")) Changed();
@@ -197,12 +197,37 @@ namespace page
 			ImGui::SeparatorText(TR("SectionController", "Controller"));
 			if (Switch(TR("PadButton", "A controller button hides and pans too"), &s.gamepadHideButton)) Changed();
 			ImGui::BeginDisabled(!s.gamepadHideButton);
-			int pad = s.panHoldGamepadButton == 0x0040 ? 1 : 0;
-			const char* pads[2] = { TR("PadR3", "Right stick click"), TR("PadL3", "Left stick click") };
-			ImGui::SetNextItemWidth(Wide());
-			if (ImGui::Combo(TR("PadWhich", "Button"), &pad, pads, 2)) {
-				s.panHoldGamepadButton = pad == 1 ? 0x0040 : 0x0080;
-				Changed();
+			ImGui::PushID("pad");
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextUnformatted(TR("PadWhich", "Button"));
+			ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.45f);
+			if (!controls::CanBindPad()) {
+				// a framework older than 1.0.2 has no pad capture: the two stick clicks, as before
+				int pad = s.panHoldGamepadButton == 0x0040 ? 1 : 0;
+				const char* pads[2] = { TR("PadR3", "Right stick click"), TR("PadL3", "Left stick click") };
+				ImGui::SetNextItemWidth(Wide());
+				if (ImGui::Combo("##padwhich", &pad, pads, 2)) {
+					s.panHoldGamepadButton = pad == 1 ? 0x0040 : 0x0080;
+					Changed();
+				}
+			} else if (controls::PadCapturing()) {
+				ImGui::TextUnformatted(TR("PressPad", "Press a controller button"));
+				ImGui::SameLine();
+				if (ImGui::Button(TR("Cancel", "Cancel"))) controls::CancelPadCapture();
+				if (const auto mask = controls::PadCaptureTick(); mask > 0) {
+					s.panHoldGamepadButton = mask;
+					Changed();
+				}
+			} else {
+				ImGui::Text("%s", controls::PadName(s.panHoldGamepadButton).c_str());
+				ImGui::SameLine();
+				if (ImGui::Button(TR("Bind", "Bind"))) controls::BeginPadCapture();
+			}
+			ImGui::PopID();
+			if (controls::CanBindPad()) {
+				const auto msg = controls::LastCaptureMessage();
+				if (!msg.empty() && controls::PadCapturing()) ImGui::TextDisabled("%s", msg.c_str());
+				Hint(TR("PadBindHint", "Bind, then press any controller button. Holding it pans the map with the right stick (the left stick when the button is the left stick click)."));
 			}
 			ImGui::EndDisabled();
 			SaveIfSettled();

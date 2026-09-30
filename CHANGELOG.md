@@ -116,6 +116,33 @@ in gameplay only - and "well just build it and install when its built". Plan: 4.
   on, 1.00 is the minimap's width. The banner's size had the same flaw and is fixed the same way. Also in this build:
   the precise SliderInt (345b317).
 
+### Round 7 (the owner's report, 2026-09-30)
+- **Fixed: enemy dots drifting while the view turns.** The owner: "The enemy markers kind of float around the screen a
+  bit when rotating".
+  - Cause: the compass' HostileData holds only a distance and an angle, and that angle does not keep to the map's frame
+    while the view turns. The location markers, from CompassIconMarkers, held still.
+  - Fix: while the compass lists enemies, the paired pawns whose reference is in combat with the player are found. That
+    is a whole object-array scan, run at most twice a second and only while the compass lists any.
+  - Each enemy is then placed from its own world position, on the same rotation, quarter turns and mirror as the map
+    image, so a dot stays on its spot of the map.
+  - The compass' angles are the fallback when no body is found. `minimap.status` markers.hostiles_from says which was
+    used.
+- **Changed: the compass and the banner can grow larger.** The owner: "The compass is about a centimeter on either side
+  of space before reaching the minimaps border but its maxed out". The compass widget's box is wider than its visible
+  bar, so "fitted" left it short of the edges. fCompassScale and fPopupScale now go to 3.00 (from 1.50), and the hint
+  says to raise the value until the widget reaches the minimap's edges.
+- **Added: a press-to-bind listener for the controller button** (the owner: "should be a button binding. Listener, so
+  that you can rebind it to any controller button").
+  - How binding works: Bind waits until every button is let go, so the A that pressed Bind isn't taken. It then arms AMF's
+    controller capture (AMF 1.0.2+), which keeps that press from the menu and the game. Any button is taken; a stick
+    direction or a trigger is refused with a reason. The page shows the button's name, and Cancel or the 8-second
+    timeout gives up.
+  - How the button is read: in gameplay, from the XInput function the game itself imports. It is found with
+    GetModuleHandle in the module the game already loaded, never LoadLibrary, and called directly rather than through
+    the import slot, so Improved Wheel Menu's controller rules don't run twice. Holding the button pans with the right
+    stick, or with the left stick when the button is the left stick click.
+  - A framework without the capture keeps the old two-choice list. AMF.h is the 1.0.4 SDK copy.
+
 ### Known gaps in this build
 - Untested: whether the game's capture draws the right things with the show-only list off, whether the pause map's
   local page still shows its own area after the minimap has captured (it shares the render targets), and the capture cost.

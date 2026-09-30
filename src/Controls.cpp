@@ -3,6 +3,8 @@
 #include "AMF.h"
 #include "Settings.h"
 
+#include <Xinput.h>   // types and constants only - nothing is linked or loaded
+
 namespace controls
 {
 	namespace
@@ -46,6 +48,45 @@ namespace controls
 		// never share a key the player cannot see in the game's own Controls page
 		struct OurKey { std::int32_t scan; const char* mod; };
 		constexpr OurKey kOurMods[] = { { 26, "Camera Configuration Menu" }, { 27, "Camera Configuration Menu" } };
+
+		// The controller's buttons, from the XInput function the game itself imports - found in the module the game already
+		// loaded (GetModuleHandle, never LoadLibrary: a plugin that loads an XInput DLL kills the controller, logic library
+		// 7178). Called directly, not through the game's import slot, so no other plugin's controller rules run twice.
+		using XInputGetState_t = DWORD(WINAPI*)(DWORD, XINPUT_STATE*);
+		XInputGetState_t PadReader()
+		{
+			static XInputGetState_t s_fn = nullptr;
+			static bool             s_looked = false;
+			if (!s_looked) {
+				s_looked = true;
+				for (const wchar_t* dll : { L"XINPUT1_3.dll", L"xinput1_4.dll", L"XINPUT9_1_0.dll" }) {
+					if (HMODULE m = ::GetModuleHandleW(dll)) {
+						s_fn = reinterpret_cast<XInputGetState_t>(::GetProcAddress(m, "XInputGetState"));
+						if (s_fn) {
+							logger::info("controls: the controller is read from the game's own XInput module ({})", dll[6] == L'1' && dll[8] == L'3' ? "XINPUT1_3" : "another XInput");
+							break;
+						}
+					}
+				}
+				if (!s_fn) logger::warn("controls: no XInput module is loaded by the game - only a stick click can be the controller button");
+			}
+			return s_fn;
+		}
+
+		// the buttons held now (0 when no pad or no reader); a_ok false when the pad cannot be read at all
+		WORD PadButtons(bool* a_ok = nullptr)
+		{
+			XINPUT_STATE st{};
+			auto*        fn = PadReader();
+			const bool   ok = fn && fn(0, &st) == ERROR_SUCCESS;
+			if (a_ok) *a_ok = ok;
+			return ok ? st.Gamepad.wButtons : 0;
+		}
+
+		// the pad button capture (the owner, 2026-09-30: "The controller button for hold to pan on the minimap should be a
+		// button binding. Listener, so that you can rebind it to any controller button"): 1 = waiting for every button to
+		// be let go (the A that pressed Bind is not the new button), 2 = AMF's capture armed
+		std::atomic<int> g_padCapture{ 0 };
 
 		std::int64_t NowMs()
 		{
@@ -200,13 +241,19 @@ namespace controls
 
 		Step(g_key, s.hideKey > 0 && Down(s.hideKey), a_shown, "hide key");
 
-		// the controller's stick click, read through the framework (0 = left, 1 = right)
+		// the controller button: any button, read from the game's own XInput function; a stick click also through the
+		// framework when that function is not there. Holding pans with the right stick (the left one when the button is L3).
+		const WORD mask = static_cast<WORD>(s.panHoldGamepadButton);
 		bool  clicked = false;
 		float sx = 0.0f, sy = 0.0f;
 		bool  live = false;
-		const int which = (s.panHoldGamepadButton & 0x0080) ? 1 : ((s.panHoldGamepadButton & 0x0040) ? 0 : -1);
-		const bool padOk = s.gamepadHideButton && which >= 0 && AMF::GetStick(which, &sx, &sy, &clicked, &live);
-		Step(g_pad, padOk && clicked, a_shown, "controller button");
+		const int  which = mask == XINPUT_GAMEPAD_LEFT_THUMB ? 0 : 1;
+		const bool stickOk = s.gamepadHideButton && AMF::GetStick(which, &sx, &sy, &clicked, &live);
+		bool       padRead = false;
+		const WORD held = s.gamepadHideButton && mask ? PadButtons(&padRead) : 0;
+		bool       down = padRead ? (held & mask) != 0 : false;
+		if (!padRead && stickOk && (mask == XINPUT_GAMEPAD_LEFT_THUMB || mask == XINPUT_GAMEPAD_RIGHT_THUMB)) down = clicked;
+		Step(g_pad, s.gamepadHideButton && mask && down, a_shown, "controller button");
 
 		const bool zoom = s.zoomToggleKey > 0 && Down(s.zoomToggleKey);
 		if (zoom && !g_zoomDown) {
@@ -217,7 +264,7 @@ namespace controls
 
 		g_panning.store(g_key.panning || g_pad.panning);
 		g_mousePanning.store(g_key.panning);
-		if (g_pad.panning && live) {
+		if (g_pad.panning && stickOk && live) {
 			std::scoped_lock l(g_panLock);
 			const double px = 400.0 * s.panSpeed * a_dt;   // a full tilt pans 400 px a second
 			g_panX += sx * px;
@@ -294,12 +341,85 @@ namespace controls
 
 	void NotePageDrawn() { g_pageDrawnAt.store(NowMs()); }
 
+	std::string PadName(std::int32_t a_mask)
+	{
+		static constexpr std::pair<WORD, const char*> kNames[] = {
+			{ XINPUT_GAMEPAD_A, "A" }, { XINPUT_GAMEPAD_B, "B" }, { XINPUT_GAMEPAD_X, "X" }, { XINPUT_GAMEPAD_Y, "Y" },
+			{ XINPUT_GAMEPAD_LEFT_SHOULDER, "LB" }, { XINPUT_GAMEPAD_RIGHT_SHOULDER, "RB" },
+			{ XINPUT_GAMEPAD_LEFT_THUMB, "Left stick click (LS)" }, { XINPUT_GAMEPAD_RIGHT_THUMB, "Right stick click (RS)" },
+			{ XINPUT_GAMEPAD_DPAD_UP, "D-pad up" }, { XINPUT_GAMEPAD_DPAD_DOWN, "D-pad down" },
+			{ XINPUT_GAMEPAD_DPAD_LEFT, "D-pad left" }, { XINPUT_GAMEPAD_DPAD_RIGHT, "D-pad right" },
+			{ XINPUT_GAMEPAD_BACK, "Back" }, { XINPUT_GAMEPAD_START, "Start" },
+		};
+		for (const auto& [bit, name] : kNames) {
+			if (static_cast<WORD>(a_mask) == bit) return name;
+		}
+		return a_mask ? std::format("button 0x{:04X}", a_mask) : "none";
+	}
+
+	bool CanBindPad() { return AMF::HasKeyCapture(); }
+
+	void BeginPadCapture()
+	{
+		AMF::CancelKeyCapture();
+		g_padCapture.store(1);
+		Message("let go of every button, then press the new one", -1);
+		logger::info("controls: capturing the next controller button");
+	}
+
+	void CancelPadCapture()
+	{
+		if (g_padCapture.exchange(0) == 2) AMF::CancelKeyCapture();
+		Message("", -1);
+	}
+
+	bool PadCapturing() { return g_padCapture.load() != 0; }
+
+	std::int32_t PadCaptureTick()
+	{
+		const int st = g_padCapture.load();
+		if (st == 1) {
+			bool ok = false;
+			const WORD held = PadButtons(&ok);
+			if (!ok || held == 0) {   // everything let go (or no pad to read): the next press is the new button
+				AMF::BeginKeyCapture(true, 8000);
+				g_padCapture.store(2);
+				Message("press a controller button", -1);
+			}
+			return -1;
+		}
+		if (st != 2) return -1;
+		std::int32_t kind = 0, code = 0;
+		switch (AMF::PollKeyCapture(&kind, &code)) {
+		case AMF::CaptureState::kCaptured:
+			g_padCapture.store(0);
+			if (kind == 2 && code > 0 && code <= 0xFFFF) {
+				Message("bound to " + PadName(code), -1);
+				logger::info("controls: the controller button is now {} (0x{:04X})", PadName(code), code);
+				return code;
+			}
+			Message(kind == 3 || kind == 4 ? "a stick direction or a trigger cannot be the button - press a button" : "that was not a controller button", -1);
+			return -1;
+		case AMF::CaptureState::kCancelled:
+		case AMF::CaptureState::kTimedOut:
+			g_padCapture.store(0);
+			Message("no button pressed - nothing changed", -1);
+			return -1;
+		case AMF::CaptureState::kIdle:
+			g_padCapture.store(0);   // the framework dropped it (its menu closed)
+			return -1;
+		default:
+			return -1;
+		}
+	}
+
 	json State()
 	{
 		const auto& s = settings::Get();
 		return { { "hide_key", KeyName(s.hideKey) }, { "zoom_key", KeyName(s.zoomToggleKey) }, { "panning", g_panning.load() },
 			{ "mouse_panning", g_mousePanning.load() }, { "hold_hide_to_pan", s.holdHideToPan },
-			{ "pad_button", s.panHoldGamepadButton }, { "pad_enabled", s.gamepadHideButton },
+			{ "pad_button", PadName(s.panHoldGamepadButton) }, { "pad_enabled", s.gamepadHideButton }, { "pad_readable", PadReader() != nullptr },
+			{ "pad_capturing", g_padCapture.load() },
 			{ "capturing", g_capture.load() }, { "capture_message", LastCaptureMessage() } };
 	}
 }

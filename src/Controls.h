@@ -38,6 +38,14 @@ namespace controls
 	int  Capturing();
 	std::string LastCaptureMessage();   // the reason a key was refused, or what was bound (English; the page translates its own)
 	int  LastRefusal();                 // -1 none, else an index into RefusalKeys()
+
+	// the controller button, bound on the page (page thread): any XInput button through AMF's pad capture (1.0.2+)
+	bool         CanBindPad();
+	void         BeginPadCapture();
+	void         CancelPadCapture();
+	bool         PadCapturing();
+	std::int32_t PadCaptureTick();   // every page frame while capturing: the new XInput mask once pressed, else -1
+	std::string  PadName(std::int32_t a_mask);
 	const char* const* RefusalKeys();   // TR keys, parallel to RefusalEnglish()
 	const char* const* RefusalEnglish();
 

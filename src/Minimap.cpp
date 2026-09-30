@@ -473,6 +473,53 @@ namespace minimap
 		std::vector<RawMarker> g_sample;
 		int        g_drawn = 0, g_listed = 0, g_hostiles = 0;
 
+		// Enemies from their world positions (the owner, 2026-09-30: "The enemy markers kind of float around the screen a bit
+		// when rotating"). The compass' HostileData is a distance and an angle only, and that angle does not keep to the map's
+		// frame while the view turns (the location markers, from CompassIconMarkers, held still). So while the compass
+		// reports enemies, the paired pawns whose reference is in combat with the player are found (a whole object-array
+		// scan, at most twice a second, only while the compass lists any) and each is placed from its own position - on
+		// the same rotation, quarter turns and mirror as the map image, so a dot stays on its spot of the map.
+		std::vector<ue::Handle> g_hostilePawns;
+		ULONGLONG               g_nextHostileScan = 0;
+		std::string             g_hostileSource = "none";
+
+		RE::Actor* ActorOf(UE::UObject* a_pawn)
+		{
+			static UE::UClass*  s_class = nullptr;
+			static std::int32_t s_off = -1;
+			auto* cls = a_pawn ? a_pawn->GetClass() : nullptr;
+			if (!cls) return nullptr;
+			if (cls != s_class) {
+				s_class = cls;
+				s_off = ue::Offset(cls, "TESRefComponent");
+			}
+			if (s_off < 0) return nullptr;
+			auto* comp = *reinterpret_cast<UE::UObject* const*>(reinterpret_cast<const std::uint8_t*>(a_pawn) + s_off);
+			if (!comp || !ue::IsLive(comp)) return nullptr;
+			const auto id = reinterpret_cast<UE::UVTESObjectRefComponent*>(comp)->formIDInstance;
+			auto* form = id ? RE::TESForm::LookupByID(id) : nullptr;
+			if (!form) return nullptr;
+			const auto t = form->GetFormType();
+			return t == RE::FormType::ActorCharacter || t == RE::FormType::ActorCreature ? static_cast<RE::Actor*>(form) : nullptr;
+		}
+
+		void ScanHostilePawns()
+		{
+			g_hostilePawns.clear();
+			static auto* pawnClass = ue::Class(L"/Script/Altar.VPairedPawn");
+			auto*        player = RE::PlayerCharacter::GetSingleton();
+			if (!pawnClass || !player) return;
+			for (auto* p : ue::AllOf(pawnClass)) {
+				auto* actor = ActorOf(p);
+				if (!actor || actor == player || actor->IsDead(false)) continue;
+				if (actor->IsInCombat(false) && actor->GetCombatTarget() == player) {
+					ue::Handle h;
+					h.Set(p);
+					g_hostilePawns.push_back(h);
+				}
+			}
+		}
+
 		UE::UObject* ViewModel()
 		{
 			if (auto* vm = g_vm.Get()) return vm;
@@ -652,7 +699,7 @@ namespace minimap
 					}
 				}
 			}
-			std::vector<std::array<float, 2>> hostiles;
+			std::vector<std::array<float, 2>> hostiles;   // the compass' own (distance and angle)
 			if (vm && g_ml.hostileArr >= 0 && g_ml.hostileElem > 0 && g_ml.hAngle >= 0 && g_ml.hDistance >= 0 && s.markHostiles) {
 				auto* base = reinterpret_cast<std::uint8_t*>(vm);
 				const auto* data = *reinterpret_cast<std::uint8_t* const*>(base + g_ml.hostileArr);
@@ -665,12 +712,9 @@ namespace minimap
 				}
 			}
 
-			// a point at compass bearing a_angle (degrees) and a_distance from the player -> panel units; false when
-			// outside the frame (a_clampToRim keeps it on the edge, pointing the way - DEM's quest pointer)
-			const auto plot = [&](float a_angle, float a_distance, double a_iconHalf, bool a_clampToRim, double& a_x, double& a_y) {
-				const double t = (a_angle - up) * std::numbers::pi / 180.0;
-				double       r = a_distance * pxPerCm;
-				double       dx = std::sin(t), dy = -std::cos(t);
+			// a direction (dx, dy: a unit vector in panel units, y down) and a distance in panel units -> panel units; false
+			// when outside the frame (a_clampToRim keeps it on the edge, pointing the way - DEM's quest pointer)
+			const auto place = [&](double dx, double dy, double r, double a_iconHalf, bool a_clampToRim, double& a_x, double& a_y) {
 				const double rim = half - a_iconHalf;
 				double       reach = rim;   // the distance to the frame's edge along this direction
 				if (!circle) {
@@ -684,6 +728,39 @@ namespace minimap
 				a_x = cx + dx * r;
 				a_y = cy + dy * r;
 				return true;
+			};
+			// a point at compass bearing a_angle (degrees) and a_distance from the player
+			const auto plot = [&](float a_angle, float a_distance, double a_iconHalf, bool a_clampToRim, double& a_x, double& a_y) {
+				const double t = (a_angle - up) * std::numbers::pi / 180.0;
+				return place(std::sin(t), -std::cos(t), a_distance * pxPerCm, a_iconHalf, a_clampToRim, a_x, a_y);
+			};
+			// a point at an Unreal world position, in the map image's own frame: east +X, south +Y, the same quarter turns
+			// and mirror as the image, turned by the image's angle
+			std::array<double, 3> me{};
+			bool haveMe = false;
+			{
+				static ue::Getter getPawn(L"K2_GetPawn");
+				static ue::Getter location(L"K2_GetActorLocation");
+				UE::UObject* pawn = nullptr;
+				auto* pc = ue::PlayerController();
+				haveMe = pc && getPawn.Get(pc, pawn) && pawn && ue::IsLive(pawn) && location.Get(pawn, me);
+			}
+			const double imageAngle = (-up - 90.0 * (s.mapQuarterTurns & 3)) * std::numbers::pi / 180.0;
+			const auto plotWorld = [&](const std::array<double, 3>& a_at, double a_iconHalf, double& a_x, double& a_y) {
+				double u = a_at[0] - me[0], v = a_at[1] - me[1];
+				for (int k = 0; k < (s.mapQuarterTurns & 3); ++k) {
+					const double t = u;
+					u = -v, v = t;
+				}
+				if (s.mapMirror && s.alwaysDrawLocalMap) u = -u;
+				const double sx = u * std::cos(imageAngle) - v * std::sin(imageAngle);
+				const double sy = u * std::sin(imageAngle) + v * std::cos(imageAngle);
+				const double len = std::hypot(sx, sy);
+				if (len < 1e-3) {
+					a_x = cx, a_y = cy;
+					return true;
+				}
+				return place(sx / len, sy / len, len * pxPerCm, a_iconHalf, false, a_x, a_y);
 			};
 
 			int used = 0;
@@ -716,13 +793,38 @@ namespace minimap
 				}
 				Place(g_icons[static_cast<std::size_t>(used++)], kind, x, y, sz, dim);
 			}
-			for (const auto& hd : hostiles) {
-				if (used >= kPool) break;
-				double x = 0, y = 0;
-				const double sz = 10.0 * s.iconScale;
-				if (!plot(hd[0], hd[1], sz * 0.5, false, x, y)) continue;
-				Place(g_icons[static_cast<std::size_t>(used++)], kKindHostile, x, y, sz);
+			// enemies: from their own positions while the compass lists any; the compass' angles only when no body is found
+			const ULONGLONG nowMs = GetTickCount64();
+			if (hostiles.empty()) {
+				g_hostilePawns.clear();
+			} else if (nowMs >= g_nextHostileScan) {
+				g_nextHostileScan = nowMs + 500;
+				ScanHostilePawns();
 			}
+			const double hsz = 10.0 * s.iconScale;
+			int fromWorld = 0;
+			if (haveMe) {
+				static ue::Getter hostileLocation(L"K2_GetActorLocation");
+				for (const auto& hp : g_hostilePawns) {
+					if (used >= kPool) break;
+					auto* p = hp.Get();
+					std::array<double, 3> at{};
+					if (!p || !hostileLocation.Get(p, at)) continue;
+					++fromWorld;
+					double x = 0, y = 0;
+					if (!plotWorld(at, hsz * 0.5, x, y)) continue;
+					Place(g_icons[static_cast<std::size_t>(used++)], kKindHostile, x, y, hsz);
+				}
+			}
+			if (fromWorld == 0) {
+				for (const auto& hd : hostiles) {
+					if (used >= kPool) break;
+					double x = 0, y = 0;
+					if (!plot(hd[0], hd[1], hsz * 0.5, false, x, y)) continue;
+					Place(g_icons[static_cast<std::size_t>(used++)], kKindHostile, x, y, hsz);
+				}
+			}
+			g_hostileSource = hostiles.empty() ? "none" : fromWorld > 0 ? std::format("{} from their positions", fromWorld) : "the compass' angles";
 			for (int i = used; i < kPool; ++i) {
 				auto& sl = g_icons[static_cast<std::size_t>(i)];
 				if (sl.shown) {
@@ -867,7 +969,7 @@ namespace minimap
 			{ "rect", { g_rect.x, g_rect.y, g_rect.w, g_rect.h } }, { "viewport_units", { g_viewportW, g_viewportH } }, { "dpi", g_dpi },
 			{ "zoomed_in", g_zoomIn }, { "pan", { g_panX, g_panY } }, { "heading", g_heading },
 			{ "local_map", localmap::State() }, { "local_map_shown", g_mapImgShown }, { "capture", capture::State() },
-			{ "markers", { { "listed", g_listed }, { "drawn", g_drawn }, { "hostiles", g_hostiles }, { "layout_ok", g_ml.ok }, { "sample", sample } } } };
+			{ "markers", { { "listed", g_listed }, { "drawn", g_drawn }, { "hostiles", g_hostiles }, { "hostiles_from", g_hostileSource }, { "layout_ok", g_ml.ok }, { "sample", sample } } } };
 	}
 
 	void Queue(Action a_action)

@@ -59,7 +59,7 @@ namespace settings
 		float        zoomDefault = 1.0f;    // how much the map is magnified at each of the two zoom levels
 		float        zoomZoomedIn = 2.0f;
 		bool         gamepadHideButton = true;          // the owner: R3 by default
-		std::int32_t panHoldGamepadButton = 0x0080;     // XInput mask: 0x0080 right stick click, 0x0040 left stick click
+		std::int32_t panHoldGamepadButton = 0x0080;     // XInput mask of any button, bound on the page; 0x0080 right stick click by default
 		float        panSpeed = 1.0f;
 
 		// [Markers]

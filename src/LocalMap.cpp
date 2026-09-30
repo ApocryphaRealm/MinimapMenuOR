@@ -36,7 +36,36 @@ namespace localmap
 			return p && *p && ue::IsLive(*p) ? *p : nullptr;
 		}
 
-		// the map page's size, from the page view model that holds the local map's properties
+		// the map's size from the local page's MapImage brush (probe 5: 4096 x 4096 - the page view model's MapSize reads 0)
+		bool ReadImageSize(UE::UObject* a_widget)
+		{
+			static auto* brushStruct = reinterpret_cast<UE::UStruct*>(UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/SlateCore.SlateBrush"));
+			auto* image = ObjectProp(a_widget, "MapImage");
+			auto* cls = image ? image->GetClass() : nullptr;
+			const auto brushOff = cls ? ue::Offset(cls, "Brush") : -1;
+			const auto sizeOff = brushStruct ? ue::Offset(brushStruct, "ImageSize") : -1;
+			const auto sizeBytes = brushStruct ? ue::SizeOf(brushStruct, "ImageSize") : -1;
+			if (brushOff < 0 || sizeOff < 0) return false;
+			const auto* at = reinterpret_cast<const std::uint8_t*>(image) + brushOff + sizeOff;
+			double w = 0, h = 0;
+			if (sizeBytes == 16) {
+				double v[2]{};
+				std::memcpy(v, at, sizeof(v));
+				w = v[0], h = v[1];
+			} else if (sizeBytes == 8) {
+				float v[2]{};
+				std::memcpy(v, at, sizeof(v));
+				w = v[0], h = v[1];
+			}
+			if (w > 1 && h > 1) {
+				g_mapW = w;
+				g_mapH = h;
+				return true;
+			}
+			return false;
+		}
+
+		// the map page's size, from the page view model that holds the local map's properties (a fallback: it read 0 in game)
 		void ReadMapSize()
 		{
 			static auto* props = reinterpret_cast<UE::UStruct*>(UE::StaticFindObject<UE::UObject>(nullptr, nullptr, L"/Script/Altar.LegacyMapMenuLocalMapProperties"));
@@ -102,7 +131,7 @@ namespace localmap
 		for (auto* w : ue::AllOf(cls)) {
 			auto* mid = ObjectProp(w, "LocalMapMaterialDynamic");
 			if (!mid) continue;
-			ReadMapSize();
+			if (!ReadImageSize(w)) ReadMapSize();
 			auto* player = RE::PlayerCharacter::GetSingleton();
 			if (mid != g_material.Get() || (player && player->parentCell != g_cell)) {
 				g_material.Set(mid);
@@ -130,7 +159,7 @@ namespace localmap
 		const double ex = east[0] - at[0], ey = east[1] - at[1];
 		const double nx = north[0] - at[0], ny = north[1] - at[1];
 		const double unitsPerCm = std::hypot(ex, ey) / 100.0;
-		const double mapW = g_mapW > 1 ? g_mapW : 2048.0, mapH = g_mapH > 1 ? g_mapH : 2048.0;
+		const double mapW = g_mapW > 1 ? g_mapW : 4096.0, mapH = g_mapH > 1 ? g_mapH : 4096.0;   // 4096: the local page's image (probe 5)
 		if (unitsPerCm <= 1e-9) return p;
 		// normalised coordinates (0..1 across the map) or map units: a metre is far less than 1% of a map in the former
 		const bool normalised = std::hypot(ex, ey) < 0.05;

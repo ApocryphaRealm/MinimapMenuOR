@@ -1,6 +1,6 @@
 Minimap Menu
 ============
-Version 1.0.0
+Version 1.0.2
 
 An original, GPL-3.0-or-later OBSE64 plugin for The Elder Scrolls IV: Oblivion Remastered. A minimap in
 the game's own HUD, drawn from the game's own local map, configured on an in-game settings page of the

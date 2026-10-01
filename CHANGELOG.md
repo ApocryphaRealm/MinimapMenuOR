@@ -3,7 +3,7 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then entries sit under "Unreleased".
 
-## Unreleased - 2026-10-01 - untested
+## 1.0.2 - 2026-10-01 - working
 
 ### Fixed
 - The controller hide button acted inside the Apocrypha Menu Framework (the owner, 2026-10-01: with it set to D-pad
@@ -11,8 +11,10 @@ once a build is seen working in game (rule 48); until then entries sit under "Un
   and the framework's window is drawn over gameplay, so only this mod's own page quieted it. The controls now stand
   down whenever the framework's window is up (AMF::IsMenuOpen, framework 1.0.5+; include/AMF.h refreshed from the
   framework's SDK, which only adds that function).
+  Confirmed by the owner in game on 3dd5590 (2026-10-01): he treats the D-pad fix as working and asked for the Nexus
+  page to be updated.
 
-## 1.0.1 - 2026-09-30 - untested
+## 1.0.1 - 2026-09-30 - working
 
 ### Fixed
 - The paired compass could run off screen (the owner, 2026-09-30: "the compass has disappeared from underneath the

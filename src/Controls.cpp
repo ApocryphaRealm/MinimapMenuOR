@@ -228,7 +228,11 @@ namespace controls
 			g_mousePanning.store(false);
 			return;
 		}
-		const bool quiet = !a_gameplay || !GameInFront() || NowMs() - g_pageDrawnAt.load() < 250;
+		// the framework's window counts as a menu on every page, not only this mod's (the owner, 2026-10-01: with the
+		// controller button set to D-pad left, "it's hiding the minimap on and off whenever I use the D-pad in AMF") - its
+		// window is drawn over gameplay (menuMode stays 1), and this button is read straight from XInput, before the
+		// framework's pad gate. AMF::IsMenuOpen is 1.0.5+; older frameworks fall back to this page's own drawn time.
+		const bool quiet = !a_gameplay || !GameInFront() || AMF::IsMenuOpen() || NowMs() - g_pageDrawnAt.load() < 250;
 		if (quiet) {
 			// a menu opened mid-press: nothing is decided, panning ends (the owner: gameplay only)
 			if (g_key.panning || g_pad.panning) logger::debug("controls: a menu opened - panning ends");

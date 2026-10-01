@@ -3,6 +3,15 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then entries sit under "Unreleased".
 
+## Unreleased - 2026-10-01 - untested
+
+### Fixed
+- The controller hide button acted inside the Apocrypha Menu Framework (the owner, 2026-10-01: with it set to D-pad
+  left, "it's hiding the minimap on and off whenever I use the D-pad in AMF"). The button is read straight from XInput
+  and the framework's window is drawn over gameplay, so only this mod's own page quieted it. The controls now stand
+  down whenever the framework's window is up (AMF::IsMenuOpen, framework 1.0.5+; include/AMF.h refreshed from the
+  framework's SDK, which only adds that function).
+
 ## 1.0.1 - 2026-09-30 - untested
 
 ### Fixed

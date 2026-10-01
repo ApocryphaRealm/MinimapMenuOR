@@ -3,13 +3,16 @@
 Written as changes happen, not reconstructed afterwards (rule 61). A version number is issued by the version gate only
 once a build is seen working in game (rule 48); until then entries sit under "Unreleased".
 
-## Unreleased
+## 1.0.1 - 2026-09-30 - untested
 
 ### Fixed
 - The paired compass could run off screen (the owner, 2026-09-30: "the compass has disappeared from underneath the
   minimap"; its translation read X 440719 in game): when the cached geometry went stale, every pass added the same
   correction again. A move now waits until the geometry shows it (2 s, then the geometry is learned again), and a
   translation past 8000 units is put back to the game's place.
+- The "is this widget still alive" check reads the widget's slot index under a fault guard, so a widget the game has
+  already garbage-collected returns "gone" instead of crashing (Apocrypha Menu Framework crashed this way on a loadout
+  swap, 2026-09-30).
 
 ## 1.0.0 - 2026-09-30 - working
 
